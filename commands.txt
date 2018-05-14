@@ -1,7 +1,13 @@
+table_set_default hcf_check_table check_state
 table_set_default session_check_table _drop
 table_set_default session_init_table init_session
 table_set_default session_complete_table _drop
-table_set_default hc_compute_table _drop
+table_set_default packet_sample_table sample_packet
+table_set_default hc_compute_table compute_hc 255
+table_set_default hc_compute_table_copy compute_hc 255
+table_set_default hc_inspect_table inspect_hc
+table_set_default hc_compute_twice_table _nop
+table_set_default hc_abnormal_table _drop
 
 table_add session_check_table lookup_session_map 1 =>
 table_add session_check_table lookup_reverse_session_map 2 =>
@@ -14,3 +20,16 @@ table_add hc_compute_table compute_hc 32->59 => 60
 table_add hc_compute_table compute_hc 60->63 => 64
 table_add hc_compute_table compute_hc 64->127 => 128
 table_add hc_compute_table compute_hc 128->254 => 255
+
+table_add hc_compute_table_copy compute_hc 0->29 => 30
+table_add hc_compute_table_copy compute_hc 30->31 => 32
+table_add hc_compute_table_copy compute_hc 32->59 => 60
+table_add hc_compute_table_copy compute_hc 60->63 => 64
+table_add hc_compute_table_copy compute_hc 64->127 => 128
+table_add hc_compute_table_copy compute_hc 128->254 => 255
+
+table_add hc_compute_twice_table compute_hc 0->29 => 32
+table_add hc_compute_twice_table compute_hc 32->59 => 64
+
+table_add hc_abnormal_table update_abnormal_counter 0 0 =>
+table_add hc_abnormal_table update_and_drop 1 0 =>

@@ -4,8 +4,10 @@
 import os
 import time
 
+# Two threshold for state switching in HCF
 learn_to_filter_thr = 20
 filter_to_learn_thr = 15
+sample_period_time = 1
 
 error_hint_str = (
     "Please check whether the switch "
@@ -54,6 +56,7 @@ switch_to_filtering_cmd = (
 
 def read_abnormal_counter():
     result = os.popen(read_abnormal_counter_cmd).read()
+    # Extract abnormal_counter from result
     try:
         packets_num_str = result[result.index("packets="):].split(',')[0]
         abnormal_counter = int(packets_num_str.split('=')[1])
@@ -75,6 +78,7 @@ def reset_abnormal_counter():
 
 def read_current_state():
     result = os.popen(read_current_state_cmd).read()
+    # Extract current_state from result
     try:
         current_state_str = result[result.index("current_state[0]="):].split()[1]
         current_state = int(current_state_str)
@@ -111,13 +115,16 @@ def output_debug_info(current_state, abnormal_counter):
         print "Debug: abnormal_counter in last period is %d" % abnormal_counter
 
 if __name__ == "__main__":
+    reset_abnormal_counter()
     while True:
         abnormal_counter = read_abnormal_counter()
         current_state = read_current_state()
         output_debug_info(current_state, abnormal_counter)
+        # Switch state in terms of abnormal_counter in last period
         if current_state == 0 and abnormal_counter > learn_to_filter_thr:
             switch_to_filtering()
         elif current_state == 1 and abnormal_counter < filter_to_learn_thr:
             switch_to_learning()
+        # Reset counter for next period
         reset_abnormal_counter()
-        time.sleep(1)
+        time.sleep(sample_period_time)

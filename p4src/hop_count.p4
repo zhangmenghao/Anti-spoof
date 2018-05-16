@@ -85,7 +85,7 @@ table packet_abnormal_table {
 
 table hc_compute_table {
     reads {
-        ipv4.ttl: range;
+        ipv4.ttl : range;
     }
     actions {
         compute_hc;
@@ -95,7 +95,7 @@ table hc_compute_table {
 
 table hc_compute_table_copy {
     reads {
-        ipv4.ttl: range;
+        ipv4.ttl : range;
     }
     actions {
         compute_hc;
@@ -114,7 +114,7 @@ table hc_inspect_table {
 
 table hc_compute_twice_table {
     reads {
-        ipv4.ttl: range;
+        ipv4.ttl : range;
     }
     actions {
         _nop;

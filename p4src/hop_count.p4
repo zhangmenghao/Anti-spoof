@@ -9,20 +9,21 @@
 #include "includes/parser.p4"
 
 #define HOP_COUNT_SIZE 8
+#define HC_BITMAP_SIZE 32
 #define HC_COMPUTE_TABLE_SIZE 8
 #define HC_COMPUTE_TWICE_TABLE_SIZE 3
 #define TCP_SESSION_MAP_BITS 8
 #define TCP_SESSION_MAP_SIZE 256 // 2^8
 #define TCP_SESSION_STATE_SIZE 1
-#define IP_TO_HC_INDEX_BITS 24
-#define IP_TO_HC_TABLE_SIZE 16777216 // 2^24
+#define IP_TO_HC_INDEX_BITS 23
+#define IP_TO_HC_TABLE_SIZE 8388608 // 2^23
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 
 header_type meta_t {
     fields {
         hop_count: HOP_COUNT_SIZE; // Hop Count of this packet
-        tcp_session_hc: HOP_COUNT_SIZE; // Hop Count in IP2HC
+        ip_to_hc_bitmap: HC_BITMAP_SIZE; // Hop Count bitmap in IP2HC
         tcp_session_map_index: TCP_SESSION_MAP_BITS;
         tcp_session_state: TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
         tcp_session_seq: 32; // sequince number of SYN-ACK packet
@@ -116,9 +117,32 @@ table hc_compute_table_copy {
     size: HC_COMPUTE_TABLE_SIZE;
 }
 
+// The relation table between source IP and hop count
+// Now, IP2HC use source IP's 23bit-prefix's hash value as index 
+// and store hop-count's bit-map(Most hop count smaller than 30)
+register ip_to_hc {
+    width : HC_BITMAP_SIZE;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+field_list ipsrc_hash_fields {
+    ipv4.srcAddr;
+}
+
+field_list_calculation ipsrc_map_hash {
+    input {
+        ipsrc_hash_fields;
+    }
+    algorithm : crc16;
+    output_width : IP_TO_HC_INDEX_BITS;
+}
+
 action inspect_hc() {
-    shift_right(meta.ip_to_hc_index, ipv4.srcAddr, 32 - IP_TO_HC_INDEX_BITS);
-    register_read(meta.tcp_session_hc, ip_to_hc, meta.ip_to_hc_index);
+    modify_field_with_hash_based_offset(
+        meta.ip_to_hc_index, 0,
+        ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
+    );
+    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
 }
 
 // Get the origin hop count of this source IP
@@ -272,17 +296,15 @@ table session_init_table {
     }
 }
 
-// The relation table between source IP and hop count
-// Now, IP2HC use source IP's 24bit-prefix as index
-register ip_to_hc {
-    width : 8;
-    instance_count : IP_TO_HC_TABLE_SIZE;
-}
-
 action complete_session() {
     register_write(session_state, meta.tcp_session_map_index, 0);
-    shift_right(meta.ip_to_hc_index, ipv4.dstAddr, 32 - IP_TO_HC_INDEX_BITS);
-    register_write(ip_to_hc, meta.ip_to_hc_index, meta.hop_count);
+    modify_field_with_hash_based_offset(
+        meta.ip_to_hc_index, 0,
+        ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
+    );
+    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
+    bit_or(meta.ip_to_hc_bitmap, meta.ip_to_hc_bitmap, 1 << meta.hop_count);
+    register_write(ip_to_hc, meta.ip_to_hc_index, meta.ip_to_hc_bitmap);
     tag_normal();
 }
 
@@ -343,11 +365,11 @@ control ingress {
                 // Compute packet's hop count and refer to its origin hop count
                 apply(hc_compute_table);
                 apply(hc_inspect_table);
-                if (meta.hop_count != meta.tcp_session_hc) {
+                if (((meta.ip_to_hc_bitmap >> meta.hop_count) & 1) == 0) {
                     // Diverse hop count.The reason may be two initial TTL pairs
                     // So recompute hop coutn for those packets
                     apply(hc_compute_twice_table);
-                    if (meta.hop_count != meta.tcp_session_hc) {
+                    if (((meta.ip_to_hc_bitmap >> meta.hop_count) & 1) == 0) {
                         // It must be abnormal packet
                         apply(hc_abnormal_table);
                     }

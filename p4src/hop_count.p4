@@ -31,6 +31,7 @@ header_type meta_t {
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
         hcf_state: 1; // 0: Learning 1: Filtering
         packet_tag: PACKET_TAG_BITS; // 0: Normal 1: Abnormal
+        is_inspected: 1; // 0: Not Inspected 1: Inspected
     }
 }
 
@@ -48,12 +49,17 @@ counter abnormal_counter {
     instance_count : 1;
 }
 
-action check_hcf() {
+action check_hcf(is_inspected) {
     register_read(meta.hcf_state, current_state, 0);
+    modify_field(meta.is_inspected, is_inspected);
 }
 
 // Used to get state(0:learning 1:filtering) of switch
+// and judge whether the packet should be inspect by HCF
 table hcf_check_table {
+    reads {
+        standard_metadata.ingress_port : exact;
+    }
     actions { check_hcf; }
 }
 
@@ -357,7 +363,7 @@ control ingress {
             // A client is attempting to connect to the server
             apply(session_init_table);
         }
-        else {
+        else if (meta.is_inspected == 1) {
             // Other packets. Anywal, samplet it first
             apply(packet_sample_table);
             if (meta.sample_value == 0 or meta.hcf_state == 1) {

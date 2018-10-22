@@ -1,2 +1,2 @@
-BMV2_PATH=/home/dracula/p4/bmv2
-P4C_BM_PATH=/home/dracula/p4/p4c-bmv2
+BMV2_PATH=/home/dracula/Downloads/p4_environment/behavioral-model
+P4C_BM_PATH=/home/dracula/Downloads/p4_environment/p4c-bm

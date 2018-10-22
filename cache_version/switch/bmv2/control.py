@@ -4,6 +4,11 @@
 import os
 import time
 
+BMV2_PATH = "/home/dracula/Downloads/p4_environment/behavioral-model"
+target_switch = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
+target_code = "hop_count.json"
+target_port = 22223
+
 # Two threshold for state switching in HCF
 learn_to_filter_thr = 20
 filter_to_learn_thr = 15
@@ -15,43 +20,28 @@ error_hint_str = (
 )
 
 read_abnormal_counter_cmd = (
-    '''
-    echo "counter_read abnormal_counter 0" | \
-    /home/dracula/p4/bmv2/targets/simple_switch/sswitch_CLI \
-    hop_count.json 22223
-    '''
+    '''echo "counter_read abnormal_counter 0" | %s %s %d''' 
+    % (target_switch, target_code, target_port)
 )
 
 reset_abnormal_counter_cmd = (
-    '''
-    echo "counter_reset abnormal_counter" | \
-    /home/dracula/p4/bmv2/targets/simple_switch/sswitch_CLI \
-    hop_count.json 22223
-    '''
+    '''echo "counter_reset abnormal_counter" | %s %s %d''' 
+    % (target_switch, target_code, target_port)
 )
 
 read_current_state_cmd = (
-    '''
-    echo "register_read current_state 0" | \
-    /home/dracula/p4/bmv2/targets/simple_switch/sswitch_CLI \
-    hop_count.json 22223
-    '''
+    '''echo "register_read current_state 0" | %s %s %d''' 
+    % (target_switch, target_code, target_port)
 )
 
 switch_to_learning_cmd = (
-    '''
-    echo "register_write current_state 0 0" | \
-    /home/dracula/p4/bmv2/targets/simple_switch/sswitch_CLI \
-    hop_count.json 22223
-    '''
+    '''echo "register_write current_state 0 0" | %s %s %d''' 
+    % (target_switch, target_code, target_port)
 )
 
 switch_to_filtering_cmd = (
-    '''
-    echo "register_write current_state 0 1" | \
-    /home/dracula/p4/bmv2/targets/simple_switch/sswitch_CLI \
-    hop_count.json 22223
-    '''
+    '''echo "register_write current_state 0 1" | %s %s %d''' 
+    % (target_switch, target_code, target_port)
 )
 
 def read_abnormal_counter():

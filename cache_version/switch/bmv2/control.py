@@ -4,7 +4,7 @@
 import os
 import time
 
-BMV2_PATH = "/home/dracula/Downloads/p4_environment/behavioral-model"
+BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 target_switch = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
 target_code = "hop_count.json"
 target_port = 22223

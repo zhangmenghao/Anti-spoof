@@ -57,6 +57,11 @@ class IP2HC:
             self.total_matched[ip_addr], self.last_matched[ip_addr]
         )
 
+    def update(self, ip_addr, hc_value):
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        self.hc_value[ip_addr] = hc_value
+
 class TCP_Session:
     def __init__(self):
         self.state = [0 for ip_addr in range(2^32)]
@@ -67,7 +72,7 @@ class TCP_Session:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         return self.state[ip_addr], self.seq_number[ip_addr]
 
-    def write(self, ip_addr, state, seq_number):
+    def update(self, ip_addr, state, seq_number):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         self.state[ip_addr] = state

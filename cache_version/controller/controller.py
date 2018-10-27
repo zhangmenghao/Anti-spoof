@@ -3,30 +3,20 @@
 
 from scapy.all import *
 from data_structure import IP2HC, TCP_Session
-
-CONTROLLER_IP = "192.168.56.101"
-TYPE_IPV4 = 0x0800
-TYPE_TCP = 0x06
-TYPE_NETHCF = 0xAB
-ALPHA = 0.2
-
-def impact_factor_function(total_matched, last_matched):
-    impact_factor = ALPHA * total_matched + (1 - ALPHA) * last_matched
-    return impact_factor
+from config import *
 
 class NetHCFController:
-    def __init__(self, iface, impact_factor_function, default_hc_list, method):
+    def __init__(self, iface, default_hc_list):
         self.iface = iface
         self.ip2hc = IP2HC(impact_factor_function, default_hc_list);
         self.tcp_session = TCP_Session()
-        self.method = method
         self.miss = 0
         self.mismatch = 0
+        self.load_cache_into_switch()
 
     def compute_hc(self, current_ttl):
         hop_count = 0
-        hop_count_possible = 0
-        # Select initial TTL according to current TTL, and compute HC
+        hop_count_possible = 0 # Select initial TTL according to current TTL, and compute HC 
         if 0 <= current_ttl <= 29:
             # Initial TTL may be 30, or 32
             hop_count = 30 - current_ttl
@@ -107,12 +97,54 @@ class NetHCFController:
                         self.compute_hc(pkt[IP])
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
-                    # This is cache update request
-                    to_be_completed()
+                    # This is a cache update request
+                    self.pull_switch_counters()
+                    update_scheme = self.ip2hc.update_cache()
+                    self.update_cache_into_switch(update_scheme)
             else:
                 # This is the header of traffic missing IP2HC in the cache
                 self.process_packets_miss_cache(pkt)
         return process_function 
 
+    # Assume controller is running on the switch
+    def pull_switch_counters():
+        result = os.popen(READ_MISS_COUNTER_CMD).read()
+        try:
+            packets_num_str = result[result.index("packets="):].split(',')[0]
+            miss_counter = int(packets_num_str.split('=')[1])
+        except:
+            print "Error: Can't read miss counter!\n"
+            print ERROR_HINT_STR
+        else:
+            self.miss = miss_counter
+        result = os.popen(READ_MISMATCH_COUNTER_CMD).read()
+        try:
+            packets_num_str = result[result.index("packets="):].split(',')[0]
+            mismatch_counter = int(packets_num_str.split('=')[1])
+        except:
+            print "Error: Can't read miss counter!\n"
+            print ERROR_HINT_STR
+        else:
+            self.mismatch = mismatch_counter
+        for idx in range(CACHE_SIZE):
+            result = os.popen(
+                READ_HITS_COUNTER_CMD.replace("xx", str(idx))
+            ).read()
+            try:
+                packets_str = result[result.index("packets="):].split(',')[0] 
+                match_times = int(packets_str.split('=')[1]) 
+            except:
+                print "Error: Can't read hits counter!\n"
+                print ERROR_HINT_STR
+                break
+            else:
+                self.ip2hc.sync_match_times(idx, match_times)
+    
+    def load_cache_into_switch(self):
+        return
+
+    def update_cache_into_switch(self, update_scheme):
+        return
+
 if __name__ == "__main__":
-    controller = NetHCFController("enp0s8")
+    controller = NetHCFController("enp0s8", [])

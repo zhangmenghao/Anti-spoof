@@ -72,7 +72,6 @@ class IP2HC:
         self.hc_value = [-1 for ip_addr in range(IP_SPACE_SIZE)]
         self.total_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
         self.last_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
-        self.cached = [0 for ip_addr in range(IP_SPACE_SIZE)]
         self.heap_pointer = [
             self.impact_heap.push(ip_addr, 0, 0) 
             for ip_addr in range(IP_SPACE_SIZE)

@@ -12,7 +12,6 @@ class NetHCFController:
         self.tcp_session = TCP_Session()
         self.miss = 0
         self.mismatch = 0
-        self.load_cache_into_switch()
 
     def compute_hc(self, current_ttl):
         hop_count = 0
@@ -41,6 +40,7 @@ class NetHCFController:
 
 
     def start(self):
+        self.load_cache_into_switch()
         sniff(iface=self.iface, prn=packets_callback)
 
     def process_packets_miss_cache(self, pkt):

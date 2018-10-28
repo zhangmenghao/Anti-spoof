@@ -69,15 +69,17 @@ class IP2HC:
         # Init the Cache Heap of the switch
         self.cache_heap = CacheHeap(impact_factor_function)
         # Init each column of the IP2HC table
-        self.hc_value = [-1 for ip_addr in range(2**32)]
-        self.total_matched = [0 for ip_addr in range(2**32)]
-        self.last_matched = [0 for ip_addr in range(2**32)]
-        self.cached = [0 for ip_addr in range(2**32)]
+        self.hc_value = [-1 for ip_addr in range(IP_SPACE_SIZE)]
+        self.total_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
+        self.last_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
+        self.cached = [0 for ip_addr in range(IP_SPACE_SIZE)]
         self.heap_pointer = [
-            self.impact_heap.push(ip_addr, 0, 0) for ip_addr in range(2**32)
+            self.impact_heap.push(ip_addr, 0, 0) 
+            for ip_addr in range(IP_SPACE_SIZE)
         ]
         self.cache = [
-            self.cache_heap.push(idx, idx, idx, 0, 0) for idx in range(CACHE_SIZE)
+            self.cache_heap.push(idx, idx, idx, 0, 0) 
+            for idx in range(CACHE_SIZE)
         ]
         # Load the default_hc_list into IP2HC
         for ip_hc_pair in default_hc_list:
@@ -160,8 +162,8 @@ class IP2HC:
 
 class TCP_Session:
     def __init__(self):
-        self.state = [0 for ip_addr in range(2**32)]
-        self.seq_number = [0 for ip_addr in range(2**32)]
+        self.state = [0 for ip_addr in range(IP_SPACE_SIZE)]
+        self.seq_number = [0 for ip_addr in range(IP_SPACE_SIZE)]
 
     def read(self, ip_addr):
         if type(ip_addr) == str:

@@ -17,6 +17,8 @@ LAMBDA = 1
 THETA = 20
 CACHE_SIZE = 100000
 
+IP_SPACE_SIZE = 100000
+
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_SWITCH = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
 TARGET_CODE = "hop_count.json"

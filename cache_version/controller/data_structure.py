@@ -40,10 +40,10 @@ class CacheHeap:
         self._heap = []
         self.impact_factor_function = impact_factor_function
 
-    def push(self, ip_addr, idx, total_matched, last_matched):
+    def push(self, ip_addr, idx, entry_handle, total_matched, last_matched):
         impact_factor = self.impact_factor_function(total_matched, last_matched)
         # -1 is because we want use heapq to realize large heap
-        item = (impact_factor, ip_addr, idx)
+        item = [impact_factor, ip_addr, idx, entry_handle]
         heapq.heappush(self._heap, item)
         return item
 
@@ -69,15 +69,15 @@ class IP2HC:
         # Init the Cache Heap of the switch
         self.cache_heap = CacheHeap(impact_factor_function)
         # Init each column of the IP2HC table
-        self.hc_value = [-1 for ip_addr in range(2^32)]
-        self.total_matched = [0 for ip_addr in range(2^32)]
-        self.last_matched = [0 for ip_addr in range(2^32)]
-        self.cached = [0 for ip_addr in range(2^32)]
+        self.hc_value = [-1 for ip_addr in range(2**32)]
+        self.total_matched = [0 for ip_addr in range(2**32)]
+        self.last_matched = [0 for ip_addr in range(2**32)]
+        self.cached = [0 for ip_addr in range(2**32)]
         self.heap_pointer = [
-            self.impact_heap.push(ip_addr, 0, 0) for ip_addr in range(2^32)
+            self.impact_heap.push(ip_addr, 0, 0) for ip_addr in range(2**32)
         ]
         self.cache = [
-            self.cache_heap.push(idx, idx, 0, 0) for idx in range(CACHE_SIZE)
+            self.cache_heap.push(idx, idx, idx, 0, 0) for idx in range(CACHE_SIZE)
         ]
         # Load the default_hc_list into IP2HC
         for ip_hc_pair in default_hc_list:
@@ -117,6 +117,12 @@ class IP2HC:
             self.total_matched[ip_addr], self.last_matched[ip_addr]
         )
 
+    def get_cached_info(self, cache_idx):
+        ip_addr = self.cache[cache_idx][1]
+        print len(self.hc_value), ip_addr
+        hc_value = self.hc_value[ip_addr]
+        return ip_addr, hc_value
+
     def update_cache(self, miss_counter):
         count = number_to_be_replaced(miss_counter)
         cache_list_to_replace = []
@@ -131,16 +137,17 @@ class IP2HC:
             controller_item = controller_list_to_replace[i]
             old_ip_addr = cache_item[1]
             cache_idx = cache_item[2]
+            entry_handle = cache_item[3]
             new_ip_addr = controller_item[1]
             # Push new item from controller into cache
             self.cache[cache_idx] = self.cache_heap.push(
-                new_ip_addr, cache_idx, 
+                new_ip_addr, cache_idx, entry_handle, 
                 total_matched[new_ip_addr], last_matched[new_ip_addr]
             )
             # Set the impact factor of thoes pushed into cache to 0
             controller_item[0] = 0
             self.impact_heap.push_direct(controller)
-            update_scheme[cache_idx] = (new_ip_addr, hc_value[new_ip_addr])
+            update_scheme[cache_idx] = (entry_handle, new_ip_addr, hc_value[new_ip_addr])
             # Set the impact factor of those from cache to normal
             self.impact_heap.update(
                 self.heap_pointer[old_ip_addr],
@@ -148,10 +155,13 @@ class IP2HC:
             )
         return update_scheme
 
+    def update_entry_handle_in_cache(self, cache_idx, entry_handle):
+        self.cache[cache_idx][3] = entry_handle
+
 class TCP_Session:
     def __init__(self):
-        self.state = [0 for ip_addr in range(2^32)]
-        self.seq_number = [0 for ip_addr in range(2^32)]
+        self.state = [0 for ip_addr in range(2**32)]
+        self.seq_number = [0 for ip_addr in range(2**32)]
 
     def read(self, ip_addr):
         if type(ip_addr) == str:

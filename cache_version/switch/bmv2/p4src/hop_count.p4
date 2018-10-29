@@ -19,19 +19,27 @@
 #define IP_TO_HC_TABLE_SIZE 8388608 // 2^23
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
+#define HIT_BITS 8
+#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register 
+#define PACKET_TRUNCATE_LENGTH 34
+#define CLONE_SPEC_VALUE 250
+#define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
+#define CONTROLLER_MAC_ADDRESS 0x000600000010
 
 header_type meta_t {
     fields {
-        hop_count: HOP_COUNT_SIZE; // Hop Count of this packet
-        ip_to_hc_bitmap: HC_BITMAP_SIZE; // Hop Count bitmap in IP2HC
-        tcp_session_map_index: TCP_SESSION_MAP_BITS;
-        tcp_session_state: TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
-        tcp_session_seq: 32; // sequince number of SYN-ACK packet
+        packet_hop_count : HOP_COUNT_SIZE; // Hop Count of this packet
+        ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
+        tcp_session_map_index : TCP_SESSION_MAP_BITS;
+        tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
+        tcp_session_seq : 32; // sequince number of SYN-ACK packet
         ip_to_hc_index : IP_TO_HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
-        hcf_state: 1; // 0: Learning 1: Filtering
-        packet_tag: PACKET_TAG_BITS; // 0: Normal 1: Abnormal
-        is_inspected: 1; // 0: Not Inspected 1: Inspected
+        hcf_state : 1; // 0: Learning 1: Filtering
+        packet_tag : PACKET_TAG_BITS; // 0: Normal 1: Abnormal
+        is_inspected : 1; // 0: Not Inspected 1: Inspected
+        ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
+        reverse_ip_to_hc_table_hit : 1; // 0: Not Hit 1 : Hit
     }
 }
 
@@ -45,6 +53,11 @@ register current_state {
 
 // The number(sampled) of abnormal packet per period
 counter abnormal_counter {
+    type : packets;
+    instance_count : 1;
+}
+
+counter miss_counter {
     type : packets;
     instance_count : 1;
 }
@@ -63,20 +76,8 @@ table hcf_check_table {
     actions { check_hcf; }
 }
 
-action sample_packet() {
-    modify_field_rng_uniform(meta.sample_value, 0, 2 ^ SAMPLE_VALUE_BITS - 1);
-}
-
-// Sample packets for computing abnormal packets per period
-table packet_sample_table {
-    actions { sample_packet; }
-}
-
 action _drop() {
     drop();
-}
-
-action _nop() {
 }
 
 action tag_normal() {
@@ -98,7 +99,7 @@ table packet_abnormal_table {
 }
 
 action compute_hc(initial_ttl) {
-    subtract(meta.hop_count, initial_ttl, ipv4.ttl);
+    subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
 }
 
 // According to final TTL, select initial TTL and compute hop count
@@ -123,32 +124,8 @@ table hc_compute_table_copy {
     size: HC_COMPUTE_TABLE_SIZE;
 }
 
-// The relation table between source IP and hop count
-// Now, IP2HC use source IP's 23bit-prefix's hash value as index 
-// and store hop-count's bit-map(Most hop count smaller than 30)
-register ip_to_hc {
-    width : HC_BITMAP_SIZE;
-    instance_count : IP_TO_HC_TABLE_SIZE;
-}
-
-field_list ipsrc_hash_fields {
-    ipv4.srcAddr;
-}
-
-field_list_calculation ipsrc_map_hash {
-    input {
-        ipsrc_hash_fields;
-    }
-    algorithm : crc16;
-    output_width : IP_TO_HC_INDEX_BITS;
-}
-
 action inspect_hc() {
-    modify_field_with_hash_based_offset(
-        meta.ip_to_hc_index, 0,
-        ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
-    );
-    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
+    register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
 }
 
 // Get the origin hop count of this source IP
@@ -156,17 +133,58 @@ table hc_inspect_table {
     actions { inspect_hc; }
 }
 
-// Because near initial TTL pair: (30, 32) and (60, 64),
-// so re-select initial TTL and re-compute hop count
-table hc_compute_twice_table {
+// Save the hop count value of each source ip address
+register hop_count {
+    width : HOP_COUNT_SIZE;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+// Save the hit count value of each entry in ip2hc table
+counter hit_count {
+    type : packets;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+action table_miss() {
+    count(miss_counter, 0);
+    modify_field(meta.ip2hc_table_hit, 0);
+}
+
+action table_hit(index) {
+    modify_field(meta.ip_to_hc_index, index);
+    count(hit_count, index);
+    modify_field(meta.ip2hc_table_hit, 1);
+}
+
+// The ip2hc table, if the current packet hits the ip2hc table, action 
+// table_hit is executed, otherwise action table_miss is executed
+table ip_to_hc_table {
     reads {
-        ipv4.ttl : range;
+        ipv4.srcAddr : exact;
     }
     actions {
-        _nop;
-        compute_hc;
+        table_miss;
+        table_hit;
     }
-    size: HC_COMPUTE_TABLE_SIZE;
+    size : IP_TO_HC_TABLE_SIZE;
+}
+
+action reverse_table_hit() {
+    modify_field(meta.reverse_ip_to_hc_table_hit, 1);
+}
+
+action reverse_table_miss() {
+    modify_field(meta.reverse_ip_to_hc_table_hit, 0);
+}
+
+table reverse_ip_to_hc_table {
+    reads {
+        ipv4.dstAddr : exact;
+    }
+    actions {
+        reverse_table_miss;
+        reverse_table_hit;
+    }
 }
 
 action learning_abnormal() {
@@ -174,12 +192,8 @@ action learning_abnormal() {
     tag_normal();
 }
 
-action filtering_sample_abnormal() {
+action filtering_abnormal() {
     count(abnormal_counter, 0);
-    tag_abnormal();
-}
-
-action filtering_other_abnormal() {
     tag_abnormal();
 }
 
@@ -193,12 +207,10 @@ action filtering_other_abnormal() {
 table hc_abnormal_table {
     reads {
         meta.hcf_state : exact;
-        meta.sample_value : exact;
     }
     actions {
         learning_abnormal;
-        filtering_sample_abnormal;
-        filtering_other_abnormal;
+        filtering_abnormal;
     }
 }
 
@@ -252,8 +264,7 @@ action lookup_session_map() {
 action lookup_reverse_session_map() {
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
-        reverse_tcp_session_map_hash,
-        TCP_SESSION_MAP_SIZE
+        reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
     register_read(
         meta.tcp_session_state, session_state, 
@@ -272,7 +283,6 @@ table session_check_table {
         standard_metadata.ingress_port : exact;
     }
     actions {
-        _drop;
         lookup_session_map;
         lookup_reverse_session_map;
     }
@@ -304,13 +314,7 @@ table session_init_table {
 
 action complete_session() {
     register_write(session_state, meta.tcp_session_map_index, 0);
-    modify_field_with_hash_based_offset(
-        meta.ip_to_hc_index, 0,
-        ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
-    );
-    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
-    bit_or(meta.ip_to_hc_bitmap, meta.ip_to_hc_bitmap, 1 << meta.hop_count);
-    register_write(ip_to_hc, meta.ip_to_hc_index, meta.ip_to_hc_bitmap);
+    register_write(hop_count, meta.ip_to_hc_index, meta.packet_hop_count);
     tag_normal();
 }
 
@@ -341,57 +345,123 @@ table l2_forward_table {
     }
 }
 
+// Metadata used in clone function
+field_list meta_data_for_clone {
+    standard_metadata;
+}
+
+action packet_clone() {
+    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+}
+
+// When a packet is missed, clone it and send it to controller
+table miss_packet_clone_table {
+    actions {
+        packet_clone;
+    }
+}
+
+// For a different pipeline
+table miss_packet_clone_table_copy {
+    actions {
+        packet_clone;
+    }
+}
+
+action modify_field_and_truncate() {
+    modify_field(ethernet.dstAddr, CONTROLLER_MAC_ADDRESS);
+    modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
+    truncate(PACKET_TRUNCATE_LENGTH);
+}
+
+// Only the packets' header are send to controller 
+table modify_field_and_truncate_table {
+    actions {
+        modify_field_and_truncate;
+    }
+}
+
+table packet_miss_table {
+    reads {
+        meta.hcf_state : exact;
+    }
+    actions {
+        tag_normal;
+        tag_abnormal;
+    }
+}
+
+action session_complete_update() {
+    //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
+    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+}
+
+table session_complete_update_table {
+    actions {
+        session_complete_update;
+    }
+}
+
 control ingress {
-    // Get basic infomation of switch and tcp session
-    apply(hcf_check_table);
-    apply(session_check_table);
-    if (meta.tcp_session_state == 1) {
-        // The connection is wainting to be established
-        if (tcp.ackNo == meta.tcp_session_seq + 1) {
-            // Legal connection, so real hop count to be stored
-            apply(hc_compute_table_copy);
-            apply(session_complete_table);
+    if (standard_metadata.ingress_port == CONTROLLER_PORT) {
+        // Packets from controller must be normal packets
+        apply(packet_normal_table);
+    }
+    else {
+        // Get basic infomation of switch
+        apply(hcf_check_table);
+        if (tcp.syn == 1 and tcp.ack == 1) {
+            apply(reverse_ip_to_hc_table);
+            if (meta.reverse_ip_to_hc_table_hit == 0)
+                apply(miss_packet_clone_table);
+            else   
+                apply(session_init_table);
+            apply(packet_normal_table);
         }
         else {
-            // Illegal connection attempt
-            apply(packet_abnormal_table);
-        }
-    }
-    else if (meta.tcp_session_state == 0) {
-        // TCP session has been established or not
-        if (tcp.syn == 1 and tcp.ack == 1) {
-            // A client is attempting to connect to the server
-            apply(session_init_table);
-        }
-        else if (meta.is_inspected == 1) {
-            // Other packets. Anywal, samplet it first
-            apply(packet_sample_table);
-            if (meta.sample_value == 0 or meta.hcf_state == 1) {
-                // The packet is sampled or the switch is in filtering state
-                // Compute packet's hop count and refer to its origin hop count
-                apply(hc_compute_table);
-                apply(hc_inspect_table);
-                if (((meta.ip_to_hc_bitmap >> meta.hop_count) & 1) == 0) {
-                    // Diverse hop count.The reason may be two initial TTL pairs
-                    // So recompute hop coutn for those packets
-                    apply(hc_compute_twice_table);
-                    if (((meta.ip_to_hc_bitmap >> meta.hop_count) & 1) == 0) {
-                        // It must be abnormal packet
-                        apply(hc_abnormal_table);
+            // Judge whether the current hits ip2hc table
+            apply(ip_to_hc_table);
+            if (meta.ip2hc_table_hit == 1) {
+                // Get session state
+                apply(session_check_table);
+                if (meta.tcp_session_state == 1) {
+                    // The connection is wainting to be established
+                    if (tcp.ackNo == meta.tcp_session_seq + 1) {
+                        // Legal connection, so real hop count to be stored
+                        apply(hc_compute_table_copy);
+                        apply(session_complete_table);
+                        apply(session_complete_update_table);
                     }
                     else {
-                        // It is normal
+                        // Illegal connection attempt
+                        apply(packet_abnormal_table);
+                    }
+                }
+                else if (meta.tcp_session_state == 0) {
+                    if (meta.is_inspected == 1) {
+                        // Compute packet's hop count and refer to its origin hop count
+                        apply(hc_compute_table);
+                        apply(hc_inspect_table);
+                        if (meta.packet_hop_count != meta.ip2hc_hop_count) {
+                            // It's abnormal
+                            apply(hc_abnormal_table);
+                        }
+                        else {
+                            // It is normal
+                            apply(packet_normal_table);
+                        }
+                    }
+                    else {
                         apply(packet_normal_table);
                     }
                 }
-                else {
-                    // It is normal
-                    apply(packet_normal_table);
-                }
             }
-            else {
-                // Do nothing to these packets
-                apply(packet_normal_table);
+            else if (meta.ip2hc_table_hit == 0)
+            {
+                apply(miss_packet_clone_table_copy);
+                apply(packet_miss_table);
             }
         }
     }
@@ -400,4 +470,8 @@ control ingress {
 }
 
 control egress {
+    if (standard_metadata.egress_port == CONTROLLER_PORT
+        and (meta.hcf_state == 0 or ipv4.dstAddr == CONTROLLER_IP_ADDRESS)) {
+        apply(modify_field_and_truncate_table);
+    }
 }

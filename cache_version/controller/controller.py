@@ -26,6 +26,7 @@ class NetHCFController:
         self.hcf_state = 0
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
+        self.reset_period_counters()
         packet_process = Process(target=self.process_packets, )
         update_process = Process(target=self.process_updates, args=(5,))
         packet_process.start()
@@ -76,7 +77,7 @@ class NetHCFController:
         elif 60 <= current_ttl <= 63:
             hop_count = 64 - current_ttl
             hop_count_possible = hop_count
-        elif 65 <= current_ttl <= 127:
+        elif 63 <= current_ttl <= 127:
             hop_count = 128 - current_ttl
             hop_count_possible = hop_count
         else:
@@ -85,8 +86,9 @@ class NetHCFController:
         return hop_count, hop_count_possible
 
     def process_packets_miss_cache(self, pkt):
-        # pkt[IP].src = pkt[IP].src.replace("10", "0")
-        # print pkt.summary()
+        pkt[IP].src = pkt[IP].src.replace("10", "0")
+        pkt[IP].dst = pkt[IP].dst.replace("10", "0")
+        print pkt.summary()
         hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
         hop_count, hop_count_possible = self.compute_hc(pkt[IP].ttl)
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:
@@ -102,9 +104,9 @@ class NetHCFController:
                 # However, we think it is abnormal traffic
                 self.mismatch += 1
                 return
-            if pkt[TCP].flags == "SA":
+            if pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
-            elif pkt[TCP].flags == "A":
+            elif pkt[TCP].flags == FLAG_ACK:
                 state, seq_no = self.tcp_session.read(pkt[IP].dst)
                 # This is SYN ACK ACK.
                 if state == 1 and pkt[IP].ack == seq_no + 1:

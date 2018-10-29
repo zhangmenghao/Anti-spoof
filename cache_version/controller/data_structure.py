@@ -71,7 +71,7 @@ class IP2HC:
         # Init the Cache Heap of the switch
         self.cache_heap = CacheHeap(impact_factor_function)
         # Init each column of the IP2HC table
-        self.hc_value = array('b', [-1 for ip_addr in range(IP_SPACE_SIZE)])
+        self.hc_value = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
         print("HC Value List Size: %d" % sys.getsizeof(self.hc_value))
         self.total_matched = array('H', [0 for ip_addr in range(IP_SPACE_SIZE)])
         print("Total Matched List Size: %d" % sys.getsizeof(self.total_matched))
@@ -183,8 +183,10 @@ class TCP_Session:
         return self.state[ip_addr], self.seq_number[ip_addr]
 
     def update(self, ip_addr, state, seq_number):
+        # print("\n\nDebug: ip %s\n\n", ip_addr)
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        # print("\n\nDebug: ip %d\n\n", ip_addr)
         self.state[ip_addr] = state
         self.seq_number[ip_addr] = seq_number
 

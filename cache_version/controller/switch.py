@@ -4,6 +4,7 @@
 import os
 import socket
 import struct
+from config import DEBUG_OPTION
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):
@@ -30,6 +31,8 @@ class NetHCFSwitchBMv2:
         )
 
     def read_miss_counter(self):
+        if DEBUG_OPTION:
+            print("Debug: reading miss counter...")
         result = os.popen(self.read_miss_counter_cmd()).read()
         try:
             packets_num_str = result[result.index("packets="):].split(',')[0]
@@ -39,6 +42,8 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
             return 0
         else:
+            if DEBUG_OPTION:
+                print("Debug: miss counter is %d" % miss_counter_value)
             return miss_counter_value
 
     def reset_miss_counter_cmd(self):
@@ -49,6 +54,8 @@ class NetHCFSwitchBMv2:
         )
 
     def reset_miss_counter(self):
+        if DEBUG_OPTION:
+            print("Debug: resetting miss counter...")
         result = os.popen(self.reset_miss_counter_cmd()).read()
         if "Done" not in result:
             print "Error: Can't reset miss counter!\n"
@@ -62,6 +69,8 @@ class NetHCFSwitchBMv2:
         )
 
     def read_mismatch_counter(self):
+        if DEBUG_OPTION:
+            print("Debug: reading mismatch counter...")
         result = os.popen(self.read_mismatch_counter_cmd()).read()
         try:
             packets_num_str = result[result.index("packets="):].split(',')[0]
@@ -71,6 +80,8 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
             return 0
         else:
+            if DEBUG_OPTION:
+                print("Debug: mismatch counter is %d" % mismatch_counter_value)
             return mismatch_counter_value
 
     def reset_mismatch_counter_cmd(self):
@@ -81,6 +92,8 @@ class NetHCFSwitchBMv2:
         )
 
     def reset_mismatch_counter(self):
+        if DEBUG_OPTION:
+            print("Debug: resetting mismatch counter...")
         result = os.popen(self.reset_mismatch_counter_cmd()).read()
         if "Done" not in result:
             print "Error: Can't reset mismatch counter!\n"
@@ -94,6 +107,11 @@ class NetHCFSwitchBMv2:
         )
 
     def read_hits_counter(self, cache_idx):
+        if DEBUG_OPTION:
+            print(
+                "Debug: reading hits counter with cache index %d ..."
+                % cache_idx
+            )
         result = os.popen(self.read_hits_counter_cmd(cache_idx)).read()
         try:
             packets_str = result[result.index("packets="):].split(',')[0]
@@ -103,16 +121,20 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
             return 0
         else:
+            if DEBUG_OPTION:
+                print("Debug: hits counter is %d" % match_times)
             return match_times
 
     def reset_hits_counter_cmd(self):
         return (
             '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.mismatch_counter, 
+            % (self.ip2hc_counter, 
                self.target_switch, self.target_code, self.target_port)
         )
 
     def reset_hits_counter(self):
+        if DEBUG_OPTION:
+            print("Debug: resetting hits counter...")
         result = os.popen(self.reset_hits_counter_cmd()).read()
         if "Done" not in result:
             print "Error: Can't reset hits counter!\n"
@@ -122,6 +144,11 @@ class NetHCFSwitchBMv2:
     def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
         if type(ip_addr) != str:
             ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if DEBUG_OPTION:
+            print(
+                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 
+                % (ip_addr, cache_idx)
+            )
         return (
             '''echo "table_add %s %s %s => %d" | %s %s %d''' 
             % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx, 
@@ -138,6 +165,10 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
             return -1
         else:
+            if DEBUG_OPTION:
+                print(
+                    "Debug: entry is added with entry handle %d" % entry_handle
+                )
             return entry_handle
 
     def update_hc_value_cmd(self, cache_idx, hc_value):
@@ -148,6 +179,11 @@ class NetHCFSwitchBMv2:
         )
 
     def update_hc_value(self, cache_idx, hc_value):
+        if DEBUG_OPTION:
+            print(
+                "Debug: Updating item with cache index %d to %d ..."  
+                % (cache_idx, hc_value)
+            )
         result = os.popen(self.update_hc_value_cmd(cache_idx, hc_value)).read()
         if "Done" not in result:
             print "Error: Can't write into hc value register!\n"
@@ -161,6 +197,11 @@ class NetHCFSwitchBMv2:
         )
 
     def delete_from_ip2hc_mat(self, entry_handle):
+        if DEBUG_OPTION:
+            print(
+                "Debug: deleting IP2HC-MAT with entry handle %d ..." 
+                % entry_handle
+            )
         result = os.popen(self.delete_from_ip2hc_mat_cmd(entry_handle)).read()
         if "Invalid" in result:
             print "Error: Can't delete entry from IP2HC MatchActionTable!\n"
@@ -184,6 +225,8 @@ class NetHCFSwitchBMv2:
         )
 
     def read_hcf_state(self):
+        if DEBUG_OPTION:
+            print("Debug: reading hcf state in switch...")
         result = os.popen(self.read_hcf_state_cmd()).read()
         # Extract hcf_state from result
         try:
@@ -195,6 +238,8 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
             return -1
         else:
+            if DEBUG_OPTION:
+                print("Debug: readed hcf state is %d" % hcf_state)
             return hcf_state
 
     def switch_to_learning_state_cmd(self):
@@ -205,6 +250,8 @@ class NetHCFSwitchBMv2:
         )
 
     def switch_to_learning_state(self):
+        if DEBUG_OPTION:
+            print("Debug: switching hcf state to learning...")
         result = os.popen(self.switch_to_learning_state_cmd()).read()
         if "Done" in result:
             return 0
@@ -221,6 +268,8 @@ class NetHCFSwitchBMv2:
         )
 
     def switch_to_filtering_state(self):
+        if DEBUG_OPTION:
+            print("Debug: switching hcf state to filtering...")
         result = os.popen(self.switch_to_filtering_state_cmd()).read()
         if "Done" in result:
             return 0

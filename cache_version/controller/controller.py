@@ -32,12 +32,12 @@ class NetHCFController:
         update_process.start()
     
     def process_packets(self):
-        sniff(iface=self.iface, prn=self.packets_callback)
+        sniff(iface=self.iface, prn=self.packets_callback())
 
     # Nested function for passing "self" parameter to sniff's callback function
     def packets_callback(self):
         def process_function(pkt):
-            if pkt[Ether].type == TYPE_IPV4:
+            if pkt[Ether].type != TYPE_IPV4:
                 # This is not a IPv4 packet, ignore it temporarily
                 return
             # This is a IPv4 packet
@@ -85,6 +85,8 @@ class NetHCFController:
         return hop_count, hop_count_possible
 
     def process_packets_miss_cache(self, pkt):
+        # pkt[IP].src = pkt[IP].src.replace("10", "0")
+        # print pkt.summary()
         hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
         hop_count, hop_count_possible = self.compute_hc(pkt[IP].ttl)
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:

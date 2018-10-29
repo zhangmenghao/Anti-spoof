@@ -54,19 +54,19 @@ class MyTopo(Topo):
                                 pcap_dump = True)
         #internal host
         h1 = self.addHost('h1',
-                          ip = "10.0.0.10",
-                          mac = "00:04:00:00:00:10")
+                          ip = "10.0.0.11",
+                          mac = "00:04:00:00:00:11")
         self.addLink(h1, switch)
         #external host
         h2 = self.addHost('h2',
           #                ip = "192.168.0.10",
-                           ip = "10.0.0.20",
-                           mac = "00:05:00:00:00:10")
+                           ip = "10.0.0.21",
+                           mac = "00:05:00:00:00:11")
         self.addLink(h2, switch)
         #cpu
         cpu = self.addHost('cpu',
-                            ip = "10.0.0.30",
-                            mac = "00:06:00:00:00:10")
+                            ip = "10.0.0.31",
+                            mac = "00:06:00:00:00:11")
         self.addLink(cpu, switch)
                     
 
@@ -87,8 +87,8 @@ def main():
     
     sw_addrs = ["10.0.0.1", "192.168.0.1"]
     
-    h_macs = ["00:05:00:00:00:10","00:04:00:00:00:10"]
-    h_addrs = ['10.0.0.20','10.0.0.10']
+    h_macs = ["00:05:00:00:00:11","00:04:00:00:00:11"]
+    h_addrs = ['10.0.0.21','10.0.0.11']
     
     for n in xrange(2):
         h = net.get('h%d' %(n+1))

@@ -164,7 +164,7 @@ class IP2HC:
             )
         return update_scheme
 
-    def reset_last_matched_array():
+    def reset_last_matched(self):
         self.last_matched = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
 
     def update_entry_handle_in_cache(self, cache_idx, entry_handle):

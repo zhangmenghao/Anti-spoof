@@ -15,8 +15,10 @@ TYPE_NETHCF = 0xAB
 ALPHA = 0.2
 LAMBDA = 1
 THETA = 20
+# CACHE_SIZE = 10
 CACHE_SIZE = 100000
 
+# IP_SPACE_SIZE = 2**6
 IP_SPACE_SIZE = 2**24
 
 LEARN_TO_FILTER_THR = 20
@@ -47,5 +49,5 @@ def impact_factor_function(total_matched, last_matched):
     return impact_factor
 
 def number_to_be_replaced(miss_counter):
-    return max(miss_counter * LAMBDA, THETA)
+    return min(miss_counter * LAMBDA, THETA)
 

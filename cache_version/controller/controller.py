@@ -5,6 +5,7 @@ from scapy.all import *
 from data_structure import IP2HC, TCP_Session
 from config import *
 from switch import NetHCFSwitchBMv2
+import time
 from multiprocessing import Process
 
 class NetHCFController:
@@ -23,15 +24,15 @@ class NetHCFController:
 
     def start(self):
         self.hcf_state = 0
-        self.switch_to_learning_state()
+        self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
-        packet_process = Process(target=self.process_packets)
+        packet_process = Process(target=self.process_packets, )
         update_process = Process(target=self.process_updates, args=(5,))
         packet_process.start()
         update_process.start()
     
-    def process_packets():
-        sniff(iface=self.iface, prn=packets_callback)
+    def process_packets(self):
+        sniff(iface=self.iface, prn=self.packets_callback)
 
     # Nested function for passing "self" parameter to sniff's callback function
     def packets_callback(self):
@@ -122,10 +123,10 @@ class NetHCFController:
                 # Such as SYN
                 self.mismatch += 1
 
-    def process_updates(period):
+    def process_updates(self, period):
         while True:
-            process_update_request()
-            sleep(period)
+            self.process_update_request()
+            time.sleep(period)
 
     def process_update_request(self):
         self.pull_switch_counters()
@@ -142,7 +143,7 @@ class NetHCFController:
         self.reset_period_counters()
 
     # Assume controller is running on the switch
-    def pull_switch_counters():
+    def pull_switch_counters(self):
         self.miss = self.switch.read_miss_counter()
         self.mismatch += self.switch.read_mismatch_counter()
         for idx in range(CACHE_SIZE):
@@ -176,4 +177,5 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("enp0s8", [])
+    controller = NetHCFController("eno2", [])
+    controller.start()

@@ -14,7 +14,7 @@ table_set_default miss_packet_clone_table packet_clone
 table_set_default miss_packet_clone_table_copy packet_clone
 table_set_default session_complete_update_table session_complete_update
 table_set_default packet_miss_table tag_abnormal
-table_set_default modify_field_and_truncate_table modify_field_and_truncate
+table_set_default modify_field_and_truncate_table nop
 table_add hcf_check_table check_hcf 2 => 0
 table_add session_check_table lookup_session_map 1 =>
 table_add session_check_table lookup_reverse_session_map 2 =>
@@ -39,4 +39,7 @@ table_add l2_forward_table forward_l2 0 2 => 1
 table_add l2_forward_table forward_l2 0 3 => 2
 table_add packet_miss_table tag_normal 0 =>
 table_add packet_miss_table tag_abnormal 1 =>
+table_add modify_field_and_truncate_table only_truncate 0 0 =>
+table_add modify_field_and_truncate_table modify_field_and_truncate 0 1 =>
+table_add modify_field_and_truncate_table modify_field_and_truncate 1 1 =>
 mirroring_add 250 3

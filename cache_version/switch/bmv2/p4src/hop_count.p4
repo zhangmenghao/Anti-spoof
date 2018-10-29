@@ -22,7 +22,7 @@
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8
 #define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register 
-#define PACKET_TRUNCATE_LENGTH 34
+#define PACKET_TRUNCATE_LENGTH 54
 #define CLONE_SPEC_VALUE 250
 #define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
 #define CONTROLLER_MAC_ADDRESS 0x000600000010
@@ -41,6 +41,7 @@ header_type meta_t {
         is_inspected : 1; // 0: Not Inspected 1: Inspected
         ip_for_match : 32; // IP address for searching the ip2hc table
         ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
+        update_ip2hc : 1;
     }
 }
 
@@ -52,12 +53,13 @@ register current_state {
     instance_count : 1;
 }
 
-// The number(sampled) of abnormal packet per period
+// The number of abnormal packet per period
 counter abnormal_counter {
     type : packets;
     instance_count : 1;
 }
 
+// The number of missed packets
 counter miss_counter {
     type : packets;
     instance_count : 1;
@@ -154,6 +156,9 @@ action get_des_ip() {
     modify_field(meta.ip_for_match, ipv4.dstAddr);
 }
 
+// Get the IP address used to match ip_tp_hc_table
+// For SYN/ACK packets, using src IP address
+// For other packets, using dst IP address
 table get_ip_table {
     reads {
         tcp.syn : exact;
@@ -350,6 +355,7 @@ table l2_forward_table {
 // Metadata used in clone function
 field_list meta_data_for_clone {
     standard_metadata;
+    meta;
 }
 
 action packet_clone() {
@@ -376,13 +382,28 @@ action modify_field_and_truncate() {
     truncate(PACKET_TRUNCATE_LENGTH);
 }
 
+action nop() {
+}
+
+action only_truncate() {
+    truncate(PACKET_TRUNCATE_LENGTH);
+}
+
 // Only the packets' header are send to controller 
 table modify_field_and_truncate_table {
+    reads {
+        meta.hcf_state : exact;
+        meta.update_ip2hc : exact;
+    }
     actions {
         modify_field_and_truncate;
+        only_truncate;
+        nop;
     }
 }
 
+// The packets that missed ip_to_hc_table, deciding whether
+// to forward them by current switch state
 table packet_miss_table {
     reads {
         meta.hcf_state : exact;
@@ -396,9 +417,12 @@ table packet_miss_table {
 action session_complete_update() {
     //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
     //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    modify_field(meta.update_ip2hc, 1);
     clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
 }
 
+// When a session is complete on the switch, the switch will send 
+// a packet to controller to update ip2hc table on the controller
 table session_complete_update_table {
     actions {
         session_complete_update;
@@ -413,10 +437,14 @@ control ingress {
     else {
         // Get basic infomation of switch
         apply(hcf_check_table);
+        // Get session state
         apply(session_check_table);
+        // Get ip address used to match ip_to_hc_table
         apply(get_ip_table);
+        // Match ip_to_hc_table
         apply(ip_to_hc_table);
         if (tcp.syn == 1 and tcp.ack == 1) {
+            // For syn/ack packets
             if (meta.ip2hc_table_hit == 0)
                 apply(miss_packet_clone_table);
             else   
@@ -430,7 +458,8 @@ control ingress {
                 if (meta.tcp_session_state == 1) {
                     // The connection is wainting to be established
                     if (tcp.ackNo == meta.tcp_session_seq + 1) {
-                        // Legal connection, so real hop count to be stored
+                        // Legal connection, computes the hop count value and
+                        // updates the ip2hc table on the switch and controller
                         apply(hc_compute_table_copy);
                         apply(session_complete_table);
                         apply(session_complete_update_table);
@@ -455,12 +484,15 @@ control ingress {
                         }
                     }
                     else {
+                        // We assume that packets from one side of
+                        // the switch are normal packets
                         apply(packet_normal_table);
                     }
                 }
             }
             else if (meta.ip2hc_table_hit == 0)
             {
+                // Missed packets
                 apply(miss_packet_clone_table_copy);
                 apply(packet_miss_table);
             }
@@ -471,8 +503,8 @@ control ingress {
 }
 
 control egress {
-    if (standard_metadata.egress_port == CONTROLLER_PORT
-        and (meta.hcf_state == 0 or ipv4.dstAddr == CONTROLLER_IP_ADDRESS)) {
+    // Judging whether to send a header or a whole packet
+    if (standard_metadata.egress_port == CONTROLLER_PORT) {
         apply(modify_field_and_truncate_table);
     }
 }

@@ -16,7 +16,7 @@
 #define TCP_SESSION_MAP_SIZE 256 // 2^8
 #define TCP_SESSION_STATE_SIZE 1
 #define IP_TO_HC_INDEX_BITS 23
-#define IP_TO_HC_TABLE_SIZE 8388608 // 2^23
+#define IP_TO_HC_TABLE_SIZE 65536 // 2^16
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8
@@ -38,8 +38,8 @@ header_type meta_t {
         hcf_state : 1; // 0: Learning 1: Filtering
         packet_tag : PACKET_TAG_BITS; // 0: Normal 1: Abnormal
         is_inspected : 1; // 0: Not Inspected 1: Inspected
+        ip_for_match : 32; // IP address for searching the ip2hc table
         ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
-        reverse_ip_to_hc_table_hit : 1; // 0: Not Hit 1 : Hit
     }
 }
 
@@ -110,7 +110,7 @@ table hc_compute_table {
     actions {
         compute_hc;
     }
-    size: HC_COMPUTE_TABLE_SIZE;
+    max_size : HC_COMPUTE_TABLE_SIZE;
 }
 
 // Another for different pipeline
@@ -121,7 +121,7 @@ table hc_compute_table_copy {
     actions {
         compute_hc;
     }
-    size: HC_COMPUTE_TABLE_SIZE;
+    max_size: HC_COMPUTE_TABLE_SIZE;
 }
 
 action inspect_hc() {
@@ -145,6 +145,25 @@ counter hit_count {
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
 
+action get_src_ip() {
+    modify_field(meta.ip_for_match, ipv4.srcAddr);
+}
+
+action get_des_ip() {
+    modify_field(meta.ip_for_match, ipv4.dstAddr);
+}
+
+table get_ip_table {
+    reads {
+        tcp.syn : exact;
+        tcp.ack : exact;
+    }
+    actions {
+        get_src_ip;
+        get_des_ip;
+    }
+}
+
 action table_miss() {
     count(miss_counter, 0);
     modify_field(meta.ip2hc_table_hit, 0);
@@ -160,31 +179,13 @@ action table_hit(index) {
 // table_hit is executed, otherwise action table_miss is executed
 table ip_to_hc_table {
     reads {
-        ipv4.srcAddr : exact;
+        meta.ip_for_match : exact;
     }
     actions {
         table_miss;
         table_hit;
     }
-    size : IP_TO_HC_TABLE_SIZE;
-}
-
-action reverse_table_hit() {
-    modify_field(meta.reverse_ip_to_hc_table_hit, 1);
-}
-
-action reverse_table_miss() {
-    modify_field(meta.reverse_ip_to_hc_table_hit, 0);
-}
-
-table reverse_ip_to_hc_table {
-    reads {
-        ipv4.dstAddr : exact;
-    }
-    actions {
-        reverse_table_miss;
-        reverse_table_hit;
-    }
+    max_size : IP_TO_HC_TABLE_SIZE;
 }
 
 action learning_abnormal() {
@@ -370,7 +371,6 @@ table miss_packet_clone_table_copy {
 }
 
 action modify_field_and_truncate() {
-    modify_field(ethernet.dstAddr, CONTROLLER_MAC_ADDRESS);
     modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
     truncate(PACKET_TRUNCATE_LENGTH);
 }
@@ -412,9 +412,11 @@ control ingress {
     else {
         // Get basic infomation of switch
         apply(hcf_check_table);
+        apply(session_check_table);
+        apply(get_ip_table);
+        apply(ip_to_hc_table);
         if (tcp.syn == 1 and tcp.ack == 1) {
-            apply(reverse_ip_to_hc_table);
-            if (meta.reverse_ip_to_hc_table_hit == 0)
+            if (meta.ip2hc_table_hit == 0)
                 apply(miss_packet_clone_table);
             else   
                 apply(session_init_table);
@@ -422,10 +424,8 @@ control ingress {
         }
         else {
             // Judge whether the current hits ip2hc table
-            apply(ip_to_hc_table);
             if (meta.ip2hc_table_hit == 1) {
                 // Get session state
-                apply(session_check_table);
                 if (meta.tcp_session_state == 1) {
                     // The connection is wainting to be established
                     if (tcp.ackNo == meta.tcp_session_seq + 1) {

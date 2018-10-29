@@ -33,7 +33,7 @@ class ImpactHeap:
         item_pointer[0] = -1 * impact_factor
         heapq.heapify(self._heap)
 
-    def reorgnize():
+    def reorgnize(self):
         heapq.heapify(self._heap)
 
 
@@ -60,7 +60,7 @@ class CacheHeap:
         item_pointer[0] = impact_factor
         heapq.heapify(self._heap)
 
-    def reorgnize():
+    def reorgnize(self):
         heapq.heapify(self._heap)
 
 

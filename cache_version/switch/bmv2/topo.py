@@ -52,17 +52,22 @@ class MyTopo(Topo):
                                 json_path = json_path,
                                 thrift_port = thrift_port,
                                 pcap_dump = True)
-#internal host
+        #internal host
         h1 = self.addHost('h1',
                           ip = "10.0.0.10",
                           mac = "00:04:00:00:00:10")
-        self.addLink(h1,switch)
-#external host
+        self.addLink(h1, switch)
+        #external host
         h2 = self.addHost('h2',
           #                ip = "192.168.0.10",
                            ip = "10.0.0.20",
                            mac = "00:05:00:00:00:10")
         self.addLink(h2, switch)
+        #cpu
+        cpu = self.addHost('cpu',
+                            ip = "10.0.0.30",
+                            mac = "00:06:00:00:00:10")
+        self.addLink(cpu, switch)
                     
 
 def main():
@@ -93,10 +98,13 @@ def main():
     for n in xrange(2):
         h = net.get('h%d' % (n+1))
         h.describe()
-
+    
+    cpu = net.get('cpu')
+    cpu.describe()
+    
     sleep(1)
     
-    cmd = [args.cli,"--json",  args.json, "--thrift-port",str(args.thrift_port)]
+    cmd = [args.cli, args.json, str(args.thrift_port)]
     with open("commands.txt", "r") as f:
         print " ".join(cmd)
         try:

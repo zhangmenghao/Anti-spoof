@@ -19,6 +19,9 @@ CACHE_SIZE = 100000
 
 IP_SPACE_SIZE = 2**24
 
+LEARN_TO_FILTER_THR = 20
+FILTER_TO_LEARN_THR = 15
+
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_SWITCH = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
 TARGET_CODE = "hop_count.json"

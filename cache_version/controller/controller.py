@@ -5,6 +5,7 @@ from scapy.all import *
 from data_structure import IP2HC, TCP_Session
 from config import *
 from switch import NetHCFSwitchBMv2
+from multiprocessing import Process
 
 class NetHCFController:
     def __init__(self, iface, default_hc_list):
@@ -17,11 +18,19 @@ class NetHCFController:
         self.miss = 0
         self.mismatch = 0
         self.hcf_state = 0 # 0: learning 1: filtering
+        self.learn_to_filter_thr = LEARN_TO_FILTER_THR 
+        self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
     def start(self):
         self.hcf_state = 0
         self.switch_to_learning_state()
         self.load_cache_into_switch()
+        packet_process = Process(target=self.process_packets)
+        update_process = Process(target=self.process_updates, args=(5,))
+        packet_process.start()
+        update_process.start()
+    
+    def process_packets():
         sniff(iface=self.iface, prn=packets_callback)
 
     # Nested function for passing "self" parameter to sniff's callback function
@@ -42,10 +51,7 @@ class NetHCFController:
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
                     # This is a cache update request
-                    self.pull_switch_counters()
-                    update_scheme = self.ip2hc.update_cache()
-                    self.update_cache_into_switch(update_scheme)
-                    self.reset_period_counters()
+                    self.process_update_request()
             else:
                 # This is the header of traffic missing IP2HC in the cache
                 self.process_packets_miss_cache(pkt)
@@ -83,6 +89,8 @@ class NetHCFController:
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:
             # Update IP2HC match statistics
             self.ip2hc.hit_in_controller(ip_addr, 1)
+            if self.hcf_state == 0:
+                sendp(pkt, self.iface)
         else:
             # The HC may not be computed,
             # or the HC should be updated,
@@ -113,6 +121,25 @@ class NetHCFController:
             else:
                 # Such as SYN
                 self.mismatch += 1
+
+    def process_updates(period):
+        while True:
+            process_update_request()
+            sleep(period)
+
+    def process_update_request(self):
+        self.pull_switch_counters()
+        # Switch state in terms of abnormal_counter in last period
+        if self.hcf_state == 0 and self.mismatch > self.learn_to_filter_thr:
+            self.hcf_state = 1
+            self.switch.switch_to_filtering_state()
+        elif self.hcf_state == 1 and self.mismatch < self.filter_to_learn_thr:
+            self.hcf_state = 0
+            self.switch.switch_to_learning_state()
+        elif self.hcf_state == 0:
+            update_scheme = self.ip2hc.update_cache(self.miss)
+            self.update_cache_into_switch(update_scheme)
+        self.reset_period_counters()
 
     # Assume controller is running on the switch
     def pull_switch_counters():

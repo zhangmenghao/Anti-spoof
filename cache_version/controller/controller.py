@@ -4,9 +4,13 @@
 from scapy.all import *
 from data_structure import IP2HC, TCP_Session
 from config import *
+from switch import NetHCFSwitchBMv2
 
 class NetHCFController:
     def __init__(self, iface, default_hc_list):
+        self.switch = NetHCFSwitchBMv2(
+            NETHCF_SWITCH_CONFIG, TARGET_SWITCH, TARGET_CODE, TARGET_PORT
+        )
         self.iface = iface
         self.ip2hc = IP2HC(impact_factor_function, default_hc_list);
         self.tcp_session = TCP_Session()
@@ -37,7 +41,6 @@ class NetHCFController:
             hop_count = 255 - current_ttl
             hop_count_possible = hop_count
         return hop_count, hop_count_possible
-
 
     def start(self):
         self.load_cache_into_switch()
@@ -108,76 +111,29 @@ class NetHCFController:
 
     # Assume controller is running on the switch
     def pull_switch_counters():
-        result = os.popen(READ_MISS_COUNTER_CMD()).read()
-        try:
-            packets_num_str = result[result.index("packets="):].split(',')[0]
-            miss_counter = int(packets_num_str.split('=')[1])
-        except:
-            print "Error: Can't read miss counter!\n"
-            print ERROR_HINT_STR
-        else:
-            self.miss = miss_counter
-        result = os.popen(READ_MISMATCH_COUNTER_CMD()).read()
-        try:
-            packets_num_str = result[result.index("packets="):].split(',')[0]
-            mismatch_counter = int(packets_num_str.split('=')[1])
-        except:
-            print "Error: Can't read miss counter!\n"
-            print ERROR_HINT_STR
-        else:
-            self.mismatch = mismatch_counter
+        self.miss = switch.read_miss_counter()
+        self.mismatch = switch.read_mismatch_counter()
         for idx in range(CACHE_SIZE):
-            result = os.popen(READ_HITS_COUNTER_CMD(idx)).read()
-            try:
-                packets_str = result[result.index("packets="):].split(',')[0] 
-                match_times = int(packets_str.split('=')[1]) 
-            except:
-                print "Error: Can't read hits counter!\n"
-                print ERROR_HINT_STR
-                break
-            else:
-                self.ip2hc.sync_match_times(idx, match_times)
+            self.ip2hc.sync_match_times(idx, switch.read_hits_counter(idx))
     
     def load_cache_into_switch(self):
         for idx in range(CACHE_SIZE):
             ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
-            result = os.popen(ADD_INTO_IP2HC_MAT_CMD(ip_addr, idx)).read()
-            try:
-                entry_handle_str = result[result.index("handle"):].split()[1]
-                entry_handle = int(entry_handle_str)
-            except:
-                print "Error: Can't add entry into IP2HC Match Action Table!\n"
-                print ERROR_HINT_STR
-            else:
+            entry_handle = switch.add_into_ip2hc_mat(ip_addr, idx)
+            if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(idx, entry_handle)
-            result = os.popen(UPDATE_HC_VALUE_CMD(idx, hc_value)).read()
-            if "Done" not in result:
-                print "Error: Can't write into hc value register!\n"
-                print ERROR_HINT_STR
+                switch.update_hc_value(idx, hc_value)
 
     def update_cache_into_switch(self, update_scheme):
         for cache_idx in update_scheme.keys():
             entry_handle = update_scheme[cache_idx][0]
             new_ip_addr = update_scheme[cache_idx][1]
             hc_value = update_scheme[cache_idx][2]
-            result = os.popen(DELETE_FROM_IP2HC_MAT_CMD(entry_handle)).read()
-            if "Invalid" in result:
-                print "Error: Can't delete entry from IP2HC MatchActionTable!\n"
-                print ERROR_HINT_STR
-            result = os.popen(ADD_INTO_IP2HC_MAT_CMD(new_ip_addr, idx)).read()
-            try:
-                entry_handle_str = result[result.index("handle"):].split()[1]
-                entry_handle = int(entry_handle_str)
-            except:
-                print "Error: Can't add entry into IP2HC Match Action Table!\n"
-                print ERROR_HINT_STR
-            else:
+            switch.delete_from_ip2hc_mat(entry_handle)
+            entry_handle = switch.add_into_ip2hc_mat(ip_addr, cache_idx)
+            if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
-            result = os.popen(UPDATE_HC_VALUE_CMD(cache_idx, hc_value)).read()
-            if "Done" not in result:
-                print "Error: Can't write into hc value register!\n"
-                print ERROR_HINT_STR
-
+                switch.update_hc_value(cache_idx, hc_value)
 
 if __name__ == "__main__":
     controller = NetHCFController("enp0s8", [])

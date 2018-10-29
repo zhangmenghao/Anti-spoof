@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 # coding=utf-8
 
+import sys
 import heapq
 import struct
 import socket
+from array import array
 from config import *
 
 
@@ -69,17 +71,22 @@ class IP2HC:
         # Init the Cache Heap of the switch
         self.cache_heap = CacheHeap(impact_factor_function)
         # Init each column of the IP2HC table
-        self.hc_value = [-1 for ip_addr in range(IP_SPACE_SIZE)]
-        self.total_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
-        self.last_matched = [0 for ip_addr in range(IP_SPACE_SIZE)]
+        self.hc_value = array('b', [-1 for ip_addr in range(IP_SPACE_SIZE)])
+        print("HC Value List Size: %d" % sys.getsizeof(self.hc_value))
+        self.total_matched = array('H', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        print("Total Matched List Size: %d" % sys.getsizeof(self.total_matched))
+        self.last_matched = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        print("Last Matched List Size: %d" % sys.getsizeof(self.last_matched))
         self.heap_pointer = [
             self.impact_heap.push(ip_addr, 0, 0) 
             for ip_addr in range(IP_SPACE_SIZE)
         ]
+        print("Heap Pointer List Size: %d" % sys.getsizeof(self.heap_pointer))
         self.cache = [
             self.cache_heap.push(idx, idx, idx, 0, 0) 
             for idx in range(CACHE_SIZE)
         ]
+        print("Cache List Size: %d" % sys.getsizeof(self.cache))
         # Load the default_hc_list into IP2HC
         for ip_hc_pair in default_hc_list:
             self.hc_value[ip_hc_pair[0]] = ip_hc_pair[1]
@@ -148,7 +155,8 @@ class IP2HC:
             # Set the impact factor of thoes pushed into cache to 0
             controller_item[0] = 0
             self.impact_heap.push_direct(controller)
-            update_scheme[cache_idx] = (entry_handle, new_ip_addr, hc_value[new_ip_addr])
+            update_scheme[cache_idx] = \
+                    (entry_handle, new_ip_addr, hc_value[new_ip_addr])
             # Set the impact factor of those from cache to normal
             self.impact_heap.update(
                 self.heap_pointer[old_ip_addr],
@@ -161,8 +169,10 @@ class IP2HC:
 
 class TCP_Session:
     def __init__(self):
-        self.state = [0 for ip_addr in range(IP_SPACE_SIZE)]
-        self.seq_number = [0 for ip_addr in range(IP_SPACE_SIZE)]
+        self.state = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        self.seq_number = array('I', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        print("TCP State List Size: %d" % sys.getsizeof(self.state))
+        print("TCP SEQ Number List Size: %d" % sys.getsizeof(self.seq_number))
 
     def read(self, ip_addr):
         if type(ip_addr) == str:

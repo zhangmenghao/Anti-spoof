@@ -15,11 +15,11 @@ TYPE_NETHCF = 0xAB
 ALPHA = 0.2
 LAMBDA = 1
 THETA = 20
-# CACHE_SIZE = 10
-CACHE_SIZE = 100000
+CACHE_SIZE = 10
+# CACHE_SIZE = 100000
 
-# IP_SPACE_SIZE = 2**6
-IP_SPACE_SIZE = 2**24
+IP_SPACE_SIZE = 2**8
+# IP_SPACE_SIZE = 2**24
 
 LEARN_TO_FILTER_THR = 20
 FILTER_TO_LEARN_THR = 15
@@ -32,7 +32,7 @@ TARGET_PORT = 22223
 NETHCF_SWITCH_CONFIG = {
     # counter name in p4
     "miss_counter": "miss_counter",
-    "mismatch_counter": "abnormal_coucnter",
+    "mismatch_counter": "abnormal_counter",
     "ip2hc_counter": "hit_count",
     # hc value register array name in p4
     "ip2hc_register": "hop_count",

@@ -18,7 +18,7 @@ class ImpactHeap:
         impact_factor = self.impact_factor_function(total_matched, last_matched)
         # -1 is because we want use heapq to realize large heap
         impact_factor *= -1
-        item = (impact_factor, ip_addr)
+        item = [impact_factor, ip_addr]
         heapq.heappush(self._heap, item)
         return item
 
@@ -127,7 +127,7 @@ class IP2HC:
 
     def get_cached_info(self, cache_idx):
         ip_addr = self.cache[cache_idx][1]
-        print len(self.hc_value), ip_addr
+        # print len(self.hc_value), ip_addr
         hc_value = self.hc_value[ip_addr]
         return ip_addr, hc_value
 
@@ -150,17 +150,17 @@ class IP2HC:
             # Push new item from controller into cache
             self.cache[cache_idx] = self.cache_heap.push(
                 new_ip_addr, cache_idx, entry_handle, 
-                total_matched[new_ip_addr], last_matched[new_ip_addr]
+                self.total_matched[new_ip_addr], self.last_matched[new_ip_addr]
             )
             # Set the impact factor of thoes pushed into cache to 0
             controller_item[0] = 0
-            self.impact_heap.push_direct(controller)
+            self.impact_heap.push_direct(controller_item)
             update_scheme[cache_idx] = \
-                    (entry_handle, new_ip_addr, hc_value[new_ip_addr])
+                    (entry_handle, new_ip_addr, self.hc_value[new_ip_addr])
             # Set the impact factor of those from cache to normal
             self.impact_heap.update(
                 self.heap_pointer[old_ip_addr],
-                total_matched[old_ip_addr], last_matched[old_ip_addr]
+                self.total_matched[old_ip_addr], self.last_matched[old_ip_addr]
             )
         return update_scheme
 

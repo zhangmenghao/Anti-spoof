@@ -7,7 +7,7 @@ import struct
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):
-        self.miss_counter = switch_config["miss_counter"],
+        self.miss_counter = switch_config["miss_counter"]
         self.mismatch_counter = switch_config["mismatch_counter"]
         self.ip2hc_counter = switch_config["ip2hc_counter"]
         self.ip2hc_register = switch_config["ip2hc_register"]
@@ -123,7 +123,7 @@ class NetHCFSwitchBMv2:
         if type(ip_addr) != str:
             ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
         return (
-            '''echo "table_add %s %s %s => %d 0" | %s %s %d''' 
+            '''echo "table_add %s %s %s => %d" | %s %s %d''' 
             % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx, 
                self.target_switch, self.target_code, self.target_port)
         )

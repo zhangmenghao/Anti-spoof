@@ -27,14 +27,14 @@ TARGET_PORT = 22223
 NETHCF_SWITCH_CONFIG = {
     # counter name in p4
     "miss_counter": "miss_counter",
-    "mismatch_counter": "mismatch_counter",
-    "ip2hc_counter": "hc_counter",
+    "mismatch_counter": "abnormal_coucnter",
+    "ip2hc_counter": "hit_count",
     # hc value register array name in p4
-    "ip2hc_register": "hc_value",
+    "ip2hc_register": "hop_count",
     # IP2HC Match-Action-Table name in p4
-    "ip2hc_mat": "IP2HC",
+    "ip2hc_mat": "ip_to_hc_table",
     # IP2HC Match-Action-Table action name in p4
-    "read_hc_function": "read_hc",
+    "read_hc_function": "table_hit",
     # State register name in p4
     "hcf_state": "current_state"
 }

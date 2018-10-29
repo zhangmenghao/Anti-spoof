@@ -34,7 +34,9 @@ NETHCF_SWITCH_CONFIG = {
     # IP2HC Match-Action-Table name in p4
     "ip2hc_mat": "IP2HC",
     # IP2HC Match-Action-Table action name in p4
-    "read_hc_function": "read_hc"
+    "read_hc_function": "read_hc",
+    # State register name in p4
+    "hcf_state": "current_state"
 }
 
 def impact_factor_function(total_matched, last_matched):

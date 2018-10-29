@@ -9,6 +9,7 @@ class NetHCFSwitchBMv2:
         self.ip2hc_register = switch_config["ip2hc_register"]
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
+        self.hcf_state = switch_config["hcf_state"]
         self.target_switch = target_switch
         self.target_code = target_code
         self.target_port = target_port
@@ -36,6 +37,19 @@ class NetHCFSwitchBMv2:
         else:
             return miss_counter_value
 
+    def reset_miss_counter_cmd():
+        return (
+            '''echo "counter_reset %s" | %s %s %d''' 
+            % (self.miss_counter, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def reset_miss_counter():
+        result = os.popen(self.reset_miss_counter_cmd()).read()
+        if "Done" not in result:
+            print "Error: Can't reset miss counter!\n"
+            print self.error_hint_str
+
     def read_mismatch_counter_cmd():
         return (
             '''echo "counter_read %s 0" | %s %s %d''' 
@@ -55,6 +69,19 @@ class NetHCFSwitchBMv2:
         else:
             return mismatch_counter_value
 
+    def reset_mismatch_counter_cmd():
+        return (
+            '''echo "counter_reset %s" | %s %s %d''' 
+            % (self.mismatch_counter, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def reset_mismatch_counter():
+        result = os.popen(self.reset_mismatch_counter_cmd()).read()
+        if "Done" not in result:
+            print "Error: Can't reset mismatch counter!\n"
+            print self.error_hint_str
+
     def read_hits_counter_cmd(cache_idx):
         return (
             '''echo "counter_read %s %d" | %s %s %d''' 
@@ -73,6 +100,19 @@ class NetHCFSwitchBMv2:
             return 0
         else:
             return match_times
+
+    def reset_hits_counter_cmd():
+        return (
+            '''echo "counter_reset %s" | %s %s %d''' 
+            % (self.mismatch_counter, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def reset_hits_counter():
+        result = os.popen(self.reset_hits_counter_cmd()).read()
+        if "Done" not in result:
+            print "Error: Can't reset hits counter!\n"
+            print self.error_hint_str
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat_cmd(ip_addr, cache_idx):
@@ -110,9 +150,8 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
 
     # Add entry into IP2HC Match-Action-Table
-    def delete_from_ip2hc_mat_cmd(entry_handle):
-        return (
-            '''echo "table_delete %s %d" | %s %s %d''' 
+    def delete_from_ip2hc_mat_cmd(entry_handle): 
+        return ( '''echo "table_delete %s %d" | %s %s %d''' 
             % (self.ip2hc_mat, entry_handle, 
                self.target_switch, self.target_code, self.target_port)
         )
@@ -132,3 +171,57 @@ class NetHCFSwitchBMv2:
             % (self.ip2hc_mat, ip_addr, 
                self.target_switch, self.target_code, self.target_port)
         )
+
+    def read_hcf_state_cmd():
+        return (
+            '''echo "register_read %s 0" | %s %s %d''' 
+            % (self.hcf_state, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def read_hcf_state():
+        result = os.popen(self.read_hcf_state_cmd()).read()
+        # Extract hcf_state from result
+        try:
+            hcf_state_str = \
+                    result[result.index("%s[0]=" % self.hcf_state):].split()[1]
+            hcf_state = int(hcf_state_str)
+        except:
+            print "Error: Can't read register hcf_state!\n"
+            print self.error_hint_str
+            return -1
+        else:
+            return hcf_state
+
+    def switch_to_learning_state_cmd():
+        return (
+            '''echo "register_write %s 0 0" | %s %s %d''' 
+            % (self.hcf_state, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def switch_to_learning_state():
+        result = os.popen(self.switch_to_learning_state_cmd).read()
+        if "Done" in result:
+            return 0
+        else:
+            print "Error: Can't write register hcf_state!\n"
+            print self.error_hint_str
+            return -1
+
+    def switch_to_filtering_state_cmd():
+        return (
+            '''echo "register_write %s 0 1" | %s %s %d''' 
+            % (self.hcf_state, 
+               self.target_switch, self.target_code, self.target_port)
+        )
+
+    def switch_to_filtering_state():
+        result = os.popen(self.switch_to_filtering_state_cmd).read()
+        if "Done" in result:
+            return 0
+        else:
+            print "Error: Can't write register hcf_state!\n"
+            print self.error_hint_str
+            return -1
+

@@ -22,11 +22,18 @@ class NetHCFController:
         self.learn_to_filter_thr = LEARN_TO_FILTER_THR 
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
-    def start(self):
+    def initialize(self):
         self.hcf_state = 0
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
+    
+    def run(self):
+        self.initialize()
+        self.process_packets()
+
+    def run_parallel(self):
+        self.initialize()
         packet_process = Process(target=self.process_packets, )
         update_process = Process(target=self.process_updates, args=(5,))
         packet_process.start()
@@ -42,7 +49,7 @@ class NetHCFController:
                 # This is not a IPv4 packet, ignore it temporarily
                 return
             # This is a IPv4 packet
-            if pkt[IP].dst == controller:
+            if pkt[IP].dst == CONTROLLER_IP:
                 # This is update request
                 if pkt[IP].proto == TYPE_TCP:
                     # This is a write back request
@@ -86,16 +93,22 @@ class NetHCFController:
         return hop_count, hop_count_possible
 
     def process_packets_miss_cache(self, pkt):
-        pkt[IP].src = pkt[IP].src.replace("10", "0")
-        pkt[IP].dst = pkt[IP].dst.replace("10", "0")
-        print pkt.summary()
+        # Temporary method
+        pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
+        pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
+        if DEBUG_OPTION:
+            print "Debug: " + pkt.summary()
         hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
         hop_count, hop_count_possible = self.compute_hc(pkt[IP].ttl)
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:
             # Update IP2HC match statistics
-            self.ip2hc.hit_in_controller(ip_addr, 1)
-            if self.hcf_state == 0:
-                sendp(pkt, self.iface)
+            if pkt[IP].proto == TYPE_TCP and \
+               pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
+                self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
+            else:
+                self.ip2hc.hit_in_controller(pkt[IP].src, 1)
+            if self.hcf_state == 1:
+                sendp(pkt, iface=self.iface)
         else:
             # The HC may not be computed,
             # or the HC should be updated,
@@ -107,17 +120,14 @@ class NetHCFController:
             if pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
             elif pkt[TCP].flags == FLAG_ACK:
-                state, seq_no = self.tcp_session.read(pkt[IP].dst)
+                state, seq_no = self.tcp_session.read(pkt[IP].src)
                 # This is SYN ACK ACK.
                 if state == 1 and pkt[IP].ack == seq_no + 1:
                     # The connection is established
                     self.tcp_session.update(pkt[IP].src, 0, 0)
-                    self.ip2hc.update(
-                        pkt[IP].src, 
-                        self.compute_hc(pkt[IP])
-                    )
+                    self.ip2hc.update(pkt[IP].src, hop_count)
                     # SYN, SYN ACK ACK, total two times for ip_addr(src)
-                    self.hit_in_controller(pkt[IP].src, 2)
+                    self.ip2hc.hit_in_controller(pkt[IP].src, 2)
                     # Eliminate the effect of SYN
                     self.mismatch -= 1
                 else:
@@ -181,5 +191,5 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("s1-eth3", [])
-    controller.start()
+    controller = NetHCFController("s1-eth3", [(11, 64)])
+    controller.run()

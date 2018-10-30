@@ -183,10 +183,10 @@ class TCP_Session:
         return self.state[ip_addr], self.seq_number[ip_addr]
 
     def update(self, ip_addr, state, seq_number):
-        # print("\n\nDebug: ip %s\n\n", ip_addr)
+        # print "\n\nDebug: ip %s\n\n" % ip_addr
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        # print("\n\nDebug: ip %d\n\n", ip_addr)
+        # print "\n\nDebug: ip %d\n\n" % ip_addr
         self.state[ip_addr] = state
         self.seq_number[ip_addr] = seq_number
 

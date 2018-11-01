@@ -43,6 +43,8 @@ register current_state {
     instance_count : 1;
 }
 
+
+// TODO: check if count can be used in tofino
 // The number(sampled) of abnormal packet per period
 counter abnormal_counter {
     type : packets;

@@ -4,6 +4,10 @@
     > Mail:
     > Created Time: Fri 11 May 2018 9:12:19 AM CST
 ************************************************************************/
+#include "tofino/stateful_alu_blackbox.p4"
+#include "tofino/intrinsic_metadata.p4"
+#include "tofino/constants.p4"
+
 
 #include "includes/headers.p4"
 #include "includes/parser.p4"

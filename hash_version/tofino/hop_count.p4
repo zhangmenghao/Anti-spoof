@@ -53,11 +53,16 @@ blackbox stateful_alu read_current_state {
 
 
 
-// TODO: check if counter can be used in tofino
 // The number(sampled) of abnormal packet per period
-counter abnormal_counter {
-    type : packets;
+// write only
+register abnormal_counter {
+    width : 32;
     instance_count : 1;
+}
+blackbox stateful_alu update_abnormal_counter {
+    reg: abnormal_counter;
+    update_lo_1_value: register_lo + 1;
+    initial_register_lo_value: 0;
 }
 
 action check_hcf(is_inspected) {
@@ -195,12 +200,12 @@ table hc_compute_twice_table {
 }
 
 action learning_abnormal() {
-    count(abnormal_counter, 0);
+    update_abnormal_counter.execute_stateful_alu(0);
     tag_normal();
 }
 
 action filtering_sample_abnormal() {
-    count(abnormal_counter, 0);
+    update_abnormal_counter.execute_stateful_alu(0);
     tag_abnormal();
 }
 
@@ -283,7 +288,7 @@ action lookup_reverse_session_map() {
     read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
     /* integrated hash version */
     // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
-    // read_session_seq.execute_statefu/l_alu_from_hash(tcp_session_map_hash);
+    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 // Get packets' tcp session information. Notice: dual direction packets in one

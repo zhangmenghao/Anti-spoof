@@ -373,7 +373,7 @@ blackbox stateful_alu write_session_seq {
     reg: session_seq;
     update_lo_1_value: meta.tcp_seq_no;
     output_value: alu_lo;
-    output_dst: meta.tcp_seqNo;
+    output_dst: meta.tcp_seq_no;
 }
 
 action init_session() {

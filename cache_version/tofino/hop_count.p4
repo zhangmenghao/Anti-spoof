@@ -1,7 +1,7 @@
 /*************************************************************************
     > File Name: hop_count.c
-    > Author: 
-    > Mail: 
+    > Author:
+    > Mail:
     > Created Time: Fri 11 May 2018 9:12:19 AM CST
 ************************************************************************/
 
@@ -21,7 +21,7 @@
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8
-#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register 
+#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
 #define PACKET_TRUNCATE_LENGTH 54
 #define CLONE_SPEC_VALUE 250
 #define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
@@ -33,6 +33,7 @@ header_type meta_t {
         ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
         tcp_session_map_index : TCP_SESSION_MAP_BITS;
         tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
+        tcp_seq_no: 32; // used for writing session_seq register
         tcp_session_seq : 32; // sequince number of SYN-ACK packet
         ip_to_hc_index : IP_TO_HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
@@ -48,25 +49,46 @@ header_type meta_t {
 metadata meta_t meta;
 
 // The state of the switch, maintained by CPU(control.py)
+// need `read` only
 register current_state {
     width : 1;
     instance_count : 1;
 }
+blackbox stateful_alu read_current_state {
+    reg: current_state;
+    update_lo_1_value: register_lo; /*= do not update*/
+    output_value: alu_lo;
+    output_dst: meta.hcf_state;
+}
 
 // The number of abnormal packet per period
-counter abnormal_counter {
-    type : packets;
+// it was a `counter` in bmv2 version
+// write only
+register abnormal_counter {
+    width : 32;
     instance_count : 1;
+}
+blackbox stateful_alu update_abnormal_counter {
+    reg: abnormal_counter;
+    update_lo_1_value: register_lo + 1;
+    initial_register_lo_value: 0;
 }
 
 // The number of missed packets
-counter miss_counter {
+// it was a `counter` in bmv2 version
+// write only
+register miss_counter {
     type : packets;
     instance_count : 1;
 }
+blackbox stateful_alu update_miss_counter {
+    reg: miss_counter;
+    update_lo_1_value:  register_lo + 1;
+    initial_register_lo_value: 0;
+}
 
 action check_hcf(is_inspected) {
-    register_read(meta.hcf_state, current_state, 0);
+    read_current_state.execute_stateful_alu(0);
     modify_field(meta.is_inspected, is_inspected);
 }
 
@@ -128,7 +150,7 @@ table hc_compute_table_copy {
 }
 
 action inspect_hc() {
-    register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
+    read_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
 }
 
 // Get the origin hop count of this source IP
@@ -136,16 +158,37 @@ table hc_inspect_table {
     actions { inspect_hc; }
 }
 
+
 // Save the hop count value of each source ip address
+// need `read` and `write`
 register hop_count {
     width : HOP_COUNT_SIZE;
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
+blackbox stateful_alu read_hop_count {
+    reg: hop_count;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.ip2hc_hop_count;
+}
+blackbox stateful_alu write_hop_count {
+    reg: hop_count;
+    update_lo_1_value: meta.packet_hop_count;
+    output_value: alu_lo;
+    output_dst: meta.packet_hop_count;
+}
 
 // Save the hit count value of each entry in ip2hc table
-counter hit_count {
+// it was a `counter` in bmv2 version
+// write only
+register hit_count {
     type : packets;
     instance_count : IP_TO_HC_TABLE_SIZE;
+}
+blackbox stateful_alu update_hit_count {
+    reg: hit_count;
+    update_lo_1_value: register_lo + 1;
+    initial_register_lo_value: 0;
 }
 
 action get_src_ip() {
@@ -171,17 +214,17 @@ table get_ip_table {
 }
 
 action table_miss() {
-    count(miss_counter, 0);
+    update_miss_counter.execute_stateful_alu(0);
     modify_field(meta.ip2hc_table_hit, 0);
 }
 
 action table_hit(index) {
     modify_field(meta.ip_to_hc_index, index);
-    count(hit_count, index);
+    update_hit_count.execute_stateful_alu(index);
     modify_field(meta.ip2hc_table_hit, 1);
 }
 
-// The ip2hc table, if the current packet hits the ip2hc table, action 
+// The ip2hc table, if the current packet hits the ip2hc table, action
 // table_hit is executed, otherwise action table_miss is executed
 table ip_to_hc_table {
     reads {
@@ -195,21 +238,21 @@ table ip_to_hc_table {
 }
 
 action learning_abnormal() {
-    count(abnormal_counter, 0);
+    update_abnormal_counter.execute_stateful_alu(0);
     tag_normal();
 }
 
 action filtering_abnormal() {
-    count(abnormal_counter, 0);
+    update_abnormal_counter.execute_stateful_alu(0);
     tag_abnormal();
 }
 
 // If the packet is judged as abnormal because its suspected hop-count,
 // handle it according to the switch state and whether the packet is sampled.
-// For learning state: if the packet is sampled, just update abnormal_counter 
-// and tag it as normal(don't drop it); if the packet is not sampled, it won't 
+// For learning state: if the packet is sampled, just update abnormal_counter
+// and tag it as normal(don't drop it); if the packet is not sampled, it won't
 // go through this table because switch don't check its hop count.
-// For filtering state, every abnormal packets should be dropped but update 
+// For filtering state, every abnormal packets should be dropped but update
 // abnormal_counter specially for these sampled.
 table hc_abnormal_table {
     reads {
@@ -254,36 +297,32 @@ field_list_calculation reverse_tcp_session_map_hash {
 }
 
 action lookup_session_map() {
+    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    register_read(
-        meta.tcp_session_state, session_state, 
-        meta.tcp_session_map_index
-    );
-    register_read(
-        meta.tcp_session_seq, session_seq,
-        meta.tcp_session_map_index
-    );
+    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    /* integrated hash version */
+    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 action lookup_reverse_session_map() {
+    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    register_read(
-        meta.tcp_session_state, session_state, 
-        meta.tcp_session_map_index
-    );
-    register_read(
-        meta.tcp_session_seq, session_seq,
-        meta.tcp_session_map_index
-    );
+    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    /* integrated hash version */
+    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
-// Get packets' tcp session information. Notice: dual direction packets in one 
+// Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
 table session_check_table {
     reads {
@@ -296,20 +335,48 @@ table session_check_table {
 }
 
 // Store sesscon state for concurrent tcp connections
+// need `read` and `write`
 register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
+blackbox stateful_alu read_session_state {
+    reg: session_state;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_state;
+}
+blackbox stateful_alu write_session_state {
+    reg: session_state;
+    update_lo_1_value: meta.tcp_session_state;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_state;
+}
 
 // Store sesscon sequince number(SYN-ACK's) for concurrent tcp connections
+// need `read` and `write`
 register session_seq {
     width : 32;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
+blackbox stateful_alu read_session_seq {
+    reg: session_seq;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_seq;
+}
+blackbox stateful_alu write_session_seq {
+    reg: session_seq;
+    update_lo_1_value: meta.tcp_seq_no;
+    output_value: alu_lo;
+    output_dst: meta.tcp_seqNo;
+}
 
 action init_session() {
-    register_write(session_state, meta.tcp_session_map_index, 1);
-    register_write(session_seq, meta.tcp_session_map_index, tcp.seqNo);
+    modify_field(meta.tcp_session_state, 1);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    modify_field(meta.tcp_seq_no, tcp.seqNo);
+    write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 
 // Someone is attempting to establish a connection from server
@@ -320,8 +387,9 @@ table session_init_table {
 }
 
 action complete_session() {
-    register_write(session_state, meta.tcp_session_map_index, 0);
-    register_write(hop_count, meta.ip_to_hc_index, meta.packet_hop_count);
+    modify_field(meta.tcp_session_state, 0);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    write_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
     tag_normal();
 }
 
@@ -389,7 +457,7 @@ action only_truncate() {
     truncate(PACKET_TRUNCATE_LENGTH);
 }
 
-// Only the packets' header are send to controller 
+// Only the packets' header are send to controller
 table modify_field_and_truncate_table {
     reads {
         meta.hcf_state : exact;
@@ -421,7 +489,7 @@ action session_complete_update() {
     clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
 }
 
-// When a session is complete on the switch, the switch will send 
+// When a session is complete on the switch, the switch will send
 // a packet to controller to update ip2hc table on the controller
 table session_complete_update_table {
     actions {
@@ -447,7 +515,7 @@ control ingress {
             // For syn/ack packets
             if (meta.ip2hc_table_hit == 0)
                 apply(miss_packet_clone_table);
-            else   
+            else
                 apply(session_init_table);
             apply(packet_normal_table);
         }

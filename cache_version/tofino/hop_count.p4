@@ -78,7 +78,7 @@ blackbox stateful_alu update_abnormal_counter {
 // it was a `counter` in bmv2 version
 // write only
 register miss_counter {
-    type : packets;
+    width: 32;
     instance_count : 1;
 }
 blackbox stateful_alu update_miss_counter {
@@ -182,7 +182,7 @@ blackbox stateful_alu write_hop_count {
 // it was a `counter` in bmv2 version
 // write only
 register hit_count {
-    type : packets;
+    width: 32;
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
 blackbox stateful_alu update_hit_count {

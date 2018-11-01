@@ -8,6 +8,7 @@ from config import DEBUG_OPTION
 
 class NetHCFSwitchTofino:
     def __init__(self, switch_config, dp_interface, dp_config):
+        self.project_name = switch_config["project_name"] 
         self.miss_counter = switch_config["miss_counter"]
         self.mismatch_counter = switch_config["mismatch_counter"]
         self.ip2hc_counter = switch_config["ip2hc_counter"]
@@ -23,6 +24,7 @@ class NetHCFSwitchTofino:
         self.dp_intfc_func = {}
         self.dp_intfc_spec = {}
         self.generate_dp_intfc_functions()
+        self.generate_dp_intfc_specifications()
         self.dp_config = dp_config
 
     def generate_dp_intfc_functions(self):
@@ -71,6 +73,7 @@ class NetHCFSwitchTofino:
                     "%s in the data plane interface!" % ctrl_reg
                 )
                 print self.error_hint_str
+        # add and delete function for IP2HC-MAT
         self.dp_intfc_func["ip2hc_mat"] = {}
         if hasattr(
             self.dp_intfc, 
@@ -84,7 +87,49 @@ class NetHCFSwitchTofino:
                 "IP2HC-MAT in the data plane interface!"
             )
             print self.error_hint_str
-        # Interfaces of MAT are to be completed
+        if hasattr(
+            self.dp_intfc, "%s_table_delete_by_match_spec" % self.ip2hc_mat
+        ):
+            self.dp_intfc_func["ip2hc_mat"]["delete"] = \
+                "%s_table_delete_by_match_spec" % self.ip2hc_mat
+        else:
+            print(
+                "Error: Can't find add function for "
+                "IP2HC-MAT in the data plane interface!"
+            )
+            print self.error_hint_str
+
+    def generate_dp_intfc_specifications(self):
+        self.dp_intfc_spec["ip2hc_mat"] = {}
+        # Specification for IP2HC-MAT match item
+        try:
+            eval("%s_%s_match_spec_t" % (self.project_name, self.ip2hc_mat))
+        except NameError:
+            print(
+                "Error: Can't find match specification for "
+                "IP2HC-MAT in the data plane interface!"
+            )
+            print self.error_hint_str
+        else:
+            self.dp_intfc_spec["ip2hc_mat"]["match"] = \
+                    "%s_%s_match_spec_t" % (self.project_name, self.ip2hc_mat)
+        # Specification for IP2HC-MAT action item
+        try:
+            eval(
+                "%s_%s_action_spec_t" \
+                % (self.project_name, self.read_hc_function)
+            )
+        except NameError:
+            print(
+                "Error: Can't find action specification for "
+                "IP2HC-MAT in the data plane interface!"
+            )
+            print self.error_hint_str
+        else:
+            self.dp_intfc_spec["ip2hc_mat"]["action"] = \
+                    "%s_%s_action_spec_t"  \
+                    % (self.project_name, self.read_hc_function)
+
 
     def read_miss_counter(self):
         if DEBUG_OPTION:
@@ -198,7 +243,7 @@ class NetHCFSwitchTofino:
         # Extracting info from the result is to be completed 
 
     # Add entry into IP2HC Match-Action-Table
-    def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
+    def add_into_ip2hc_mat(self, ip_addr, cache_idx):
         if type(ip_addr) != str:
             ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
         # Temporary method...
@@ -208,55 +253,34 @@ class NetHCFSwitchTofino:
                 "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 
                 % (ip_addr, cache_idx)
             )
-        return (
-            '''echo "table_add %s %s %s => %d" | %s %s %d''' 
-            % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["ip2hc_mat"]["add"]
+        match_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["match"])(ip_addr)
+        action_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["action"])(cache_idx)
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            match_spec, action_spec
         )
+        print result
+        # Extracting info(entry_handle) from the result is to be completed 
 
-    def add_into_ip2hc_mat(self, ip_addr, cache_idx):
-        result = os.popen(self.add_into_ip2hc_mat_cmd(ip_addr,cache_idx)).read()
-        try:
-            entry_handle_str = result[result.index("handle"):].split()[1]
-            entry_handle = int(entry_handle_str)
-        except:
-            print "Error: Can't add entry into IP2HC Match Action Table!\n"
-            print self.error_hint_str
-            return -1
-        else:
-            if DEBUG_OPTION:
-                print(
-                    "Debug: entry is added with entry handle %d" % entry_handle
-                )
-            return entry_handle
-
-    # Add entry into IP2HC Match-Action-Table
-    def delete_from_ip2hc_mat_cmd(self, entry_handle): 
-        return ( '''echo "table_delete %s %d" | %s %s %d''' 
-            % (self.ip2hc_mat, entry_handle, 
-               self.target_switch, self.target_code, self.target_port)
-        )
-
-    def delete_from_ip2hc_mat(self, entry_handle):
+    # Delete entry into IP2HC Match-Action-Table
+    def delete_from_ip2hc_mat(self, ip_addr):
+        if type(ip_addr) != str:
+            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # Temporary method...
+        ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
                 "Debug: deleting IP2HC-MAT with entry handle %d ..." 
                 % entry_handle
             )
-        result = os.popen(self.delete_from_ip2hc_mat_cmd(entry_handle)).read()
-        if "Invalid" in result:
-            print "Error: Can't delete entry from IP2HC MatchActionTable!\n"
-            print self.error_hint_str
-
-    # Get the entry index in IP2HC-MAT
-    def index_ip2hc_mat_cmd(self, ip_addr, cache_idx):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        return (
-            '''echo "table_dump_entry_from_key %s %s 0" | %s %s %d''' 
-            % (self.ip2hc_mat, ip_addr, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["ip2hc_mat"]["delete"]
+        match_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["match"])(ip_addr)
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], match_spec
         )
+        print result
+        # Extracting info from the result is to be completed 
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):

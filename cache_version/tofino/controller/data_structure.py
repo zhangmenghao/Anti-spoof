@@ -155,8 +155,10 @@ class IP2HC:
             # Set the impact factor of thoes pushed into cache to 0
             controller_item[0] = 0
             self.impact_heap.push_direct(controller_item)
+            # update_scheme[cache_idx] = \
+                    # (entry_handle, new_ip_addr, self.hc_value[new_ip_addr])
             update_scheme[cache_idx] = \
-                    (entry_handle, new_ip_addr, self.hc_value[new_ip_addr])
+                    (old_ip_addr, new_ip_addr, self.hc_value[new_ip_addr])
             # Set the impact factor of those from cache to normal
             self.impact_heap.update(
                 self.heap_pointer[old_ip_addr],

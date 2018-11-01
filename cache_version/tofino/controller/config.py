@@ -32,6 +32,8 @@ TARGET_CODE = "hop_count.json"
 TARGET_PORT = 22223
 
 NETHCF_SWITCH_CONFIG = {
+    # project name in p4
+    "project_name": "NetHCF",
     # counter name in p4
     "miss_counter": "miss_counter",
     "mismatch_counter": "abnormal_counter",

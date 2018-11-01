@@ -177,6 +177,7 @@ class NetHCFController:
             new_ip_addr = update_scheme[cache_idx][1]
             hc_value = update_scheme[cache_idx][2]
             self.switch.delete_from_ip2hc_mat(entry_handle)
+            self.switch.delete_from_ip2hc_mat(entry_handle)
             entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)

@@ -21,6 +21,7 @@ class NetHCFSwitchTofino:
         )
         self.dp_intfc = dp_interface # Data plane interface
         self.dp_intfc_func = {}
+        self.dp_intfc_spec = {}
         self.generate_dp_intfc_functions()
         self.dp_config = dp_config
 
@@ -71,72 +72,61 @@ class NetHCFSwitchTofino:
                 )
                 print self.error_hint_str
         self.dp_intfc_func["ip2hc_mat"] = {}
+        if hasattr(
+            self.dp_intfc, 
+            "%s_table_add_with_%s" % (self.ip2hc_mat, self.read_hc_function)
+        ):
+            self.dp_intfc_func["ip2hc_mat"]["add"] = \
+                "%s_table_add_with_%s" % (self.ip2hc_mat, self.read_hc_function)
+        else:
+            print(
+                "Error: Can't find add function for "
+                "IP2HC-MAT in the data plane interface!"
+            )
+            print self.error_hint_str
+        # Interfaces of MAT are to be completed
 
     def read_miss_counter(self):
-        getattr(self.dp_intfc, self.dp_intfc_func["miss_counter"]["read"])(
-            
+        if DEBUG_OPTION:
+            print("Debug: reading miss counter...")
+        function_name = self.dp_intfc_func["miss_counter"]["read"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            0, self.dp_config["hw_sync_flag"]
         )
-
-
-    def reset_miss_counter_cmd(self):
-        return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.miss_counter, 
-               self.target_switch, self.target_code, self.target_port)
-        )
+        return result
+        # Extracting info from the result is to be completed 
 
     def reset_miss_counter(self):
         if DEBUG_OPTION:
             print("Debug: resetting miss counter...")
-        result = os.popen(self.reset_miss_counter_cmd()).read()
-        if "Done" not in result:
-            print "Error: Can't reset miss counter!\n"
-            print self.error_hint_str
-
-    def read_mismatch_counter_cmd(self):
-        return (
-            '''echo "counter_read %s 0" | %s %s %d''' 
-            % (self.mismatch_counter, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["miss_counter"]["reset"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
+        print result
+        # Extracting info from the result is to be completed 
 
     def read_mismatch_counter(self):
         if DEBUG_OPTION:
             print("Debug: reading mismatch counter...")
-        result = os.popen(self.read_mismatch_counter_cmd()).read()
-        try:
-            packets_num_str = result[result.index("packets="):].split(',')[0]
-            mismatch_counter_value = int(packets_num_str.split('=')[1])
-        except:
-            print "Error: Can't read mismatch counter!\n"
-            print self.error_hint_str
-            return 0
-        else:
-            if DEBUG_OPTION:
-                print("Debug: mismatch counter is %d" % mismatch_counter_value)
-            return mismatch_counter_value
-
-    def reset_mismatch_counter_cmd(self):
-        return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.mismatch_counter, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["mismatch_counter"]["read"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            0, self.dp_config["hw_sync_flag"]
         )
+        return result
+        # Extracting info from the result is to be completed 
 
     def reset_mismatch_counter(self):
         if DEBUG_OPTION:
             print("Debug: resetting mismatch counter...")
-        result = os.popen(self.reset_mismatch_counter_cmd()).read()
-        if "Done" not in result:
-            print "Error: Can't reset mismatch counter!\n"
-            print self.error_hint_str
-
-    def read_hits_counter_cmd(self, cache_idx):
-        return (
-            '''echo "counter_read %s %d" | %s %s %d''' 
-            % (self.ip2hc_counter, cache_idx, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["miss_counter"]["reset"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
+        print result
+        # Extracting info from the result is to be completed 
 
     def read_hits_counter(self, cache_idx):
         if DEBUG_OPTION:
@@ -144,33 +134,68 @@ class NetHCFSwitchTofino:
                 "Debug: reading hits counter with cache index %d ..."
                 % cache_idx
             )
-        result = os.popen(self.read_hits_counter_cmd(cache_idx)).read()
-        try:
-            packets_str = result[result.index("packets="):].split(',')[0]
-            match_times = int(packets_str.split('=')[1]) 
-        except:
-            print "Error: Can't read hits counter!\n"
-            print self.error_hint_str
-            return 0
-        else:
-            if DEBUG_OPTION:
-                print("Debug: hits counter is %d" % match_times)
-            return match_times
-
-    def reset_hits_counter_cmd(self):
-        return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.ip2hc_counter, 
-               self.target_switch, self.target_code, self.target_port)
+        function_name = self.dp_intfc_func["ip2hc_counter"]["read"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            cache_idx, self.dp_config["hw_sync_flag"]
         )
+        return result
+        # Extracting info from the result is to be completed 
 
     def reset_hits_counter(self):
         if DEBUG_OPTION:
             print("Debug: resetting hits counter...")
-        result = os.popen(self.reset_hits_counter_cmd()).read()
-        if "Done" not in result:
-            print "Error: Can't reset hits counter!\n"
-            print self.error_hint_str
+        function_name = self.dp_intfc_func["mismatch_counter"]["reset"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
+        )
+        print result
+        # Extracting info from the result is to be completed 
+
+    def update_hc_value(self, cache_idx, hc_value):
+        if DEBUG_OPTION:
+            print(
+                "Debug: Updating item with cache index %d to %d ..."  
+                % (cache_idx, hc_value)
+            )
+        function_name = self.dp_intfc_func["ip2hc_register"]["write"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            cache_idx, hc_value
+        )
+        print result
+        # Extracting info from the result is to be completed 
+
+    def read_hcf_state(self):
+        if DEBUG_OPTION:
+            print("Debug: reading hcf state in switch...")
+        function_name = self.dp_intfc_func["hcf_state"]["read"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            0, self.dp_config["hw_sync_flag"]
+        )
+        return result
+        # Extracting info from the result is to be completed 
+
+    def switch_to_learning_state(self):
+        if DEBUG_OPTION:
+            print("Debug: switching hcf state to learning...")
+        function_name = self.dp_intfc_func["hcf_state"]["write"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 0
+        )
+        print result
+        # Extracting info from the result is to be completed 
+
+    def switch_to_filtering_state(self):
+        if DEBUG_OPTION:
+            print("Debug: switching hcf state to filtering...")
+        function_name = self.dp_intfc_func["hcf_state"]["write"]
+        result = getattr(self.dp_intfc, function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 1
+        )
+        print result
+        # Extracting info from the result is to be completed 
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
@@ -205,24 +230,6 @@ class NetHCFSwitchTofino:
                 )
             return entry_handle
 
-    def update_hc_value_cmd(self, cache_idx, hc_value):
-        return (
-            '''echo "register_write %s %d %d" | %s %s %d''' 
-            % (self.ip2hc_register, cache_idx, hc_value, 
-               self.target_switch, self.target_code, self.target_port)
-        )
-
-    def update_hc_value(self, cache_idx, hc_value):
-        if DEBUG_OPTION:
-            print(
-                "Debug: Updating item with cache index %d to %d ..."  
-                % (cache_idx, hc_value)
-            )
-        result = os.popen(self.update_hc_value_cmd(cache_idx, hc_value)).read()
-        if "Done" not in result:
-            print "Error: Can't write into hc value register!\n"
-            print self.error_hint_str
-
     # Add entry into IP2HC Match-Action-Table
     def delete_from_ip2hc_mat_cmd(self, entry_handle): 
         return ( '''echo "table_delete %s %d" | %s %s %d''' 
@@ -250,67 +257,6 @@ class NetHCFSwitchTofino:
             % (self.ip2hc_mat, ip_addr, 
                self.target_switch, self.target_code, self.target_port)
         )
-
-    def read_hcf_state_cmd(self):
-        return (
-            '''echo "register_read %s 0" | %s %s %d''' 
-            % (self.hcf_state, 
-               self.target_switch, self.target_code, self.target_port)
-        )
-
-    def read_hcf_state(self):
-        if DEBUG_OPTION:
-            print("Debug: reading hcf state in switch...")
-        result = os.popen(self.read_hcf_state_cmd()).read()
-        # Extract hcf_state from result
-        try:
-            hcf_state_str = \
-                    result[result.index("%s[0]=" % self.hcf_state):].split()[1]
-            hcf_state = int(hcf_state_str)
-        except:
-            print "Error: Can't read register hcf_state!\n"
-            print self.error_hint_str
-            return -1
-        else:
-            if DEBUG_OPTION:
-                print("Debug: readed hcf state is %d" % hcf_state)
-            return hcf_state
-
-    def switch_to_learning_state_cmd(self):
-        return (
-            '''echo "register_write %s 0 0" | %s %s %d''' 
-            % (self.hcf_state, 
-               self.target_switch, self.target_code, self.target_port)
-        )
-
-    def switch_to_learning_state(self):
-        if DEBUG_OPTION:
-            print("Debug: switching hcf state to learning...")
-        result = os.popen(self.switch_to_learning_state_cmd()).read()
-        if "Done" in result:
-            return 0
-        else:
-            print "Error: Can't write register hcf_state!\n"
-            print self.error_hint_str
-            return -1
-
-    def switch_to_filtering_state_cmd(self):
-        return (
-            '''echo "register_write %s 0 1" | %s %s %d''' 
-            % (self.hcf_state, 
-               self.target_switch, self.target_code, self.target_port)
-        )
-
-    def switch_to_filtering_state(self):
-        if DEBUG_OPTION:
-            print("Debug: switching hcf state to filtering...")
-        result = os.popen(self.switch_to_filtering_state_cmd()).read()
-        if "Done" in result:
-            return 0
-        else:
-            print "Error: Can't write register hcf_state!\n"
-            print self.error_hint_str
-            return -1
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):

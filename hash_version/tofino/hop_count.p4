@@ -1,7 +1,7 @@
 /*************************************************************************
     > File Name: hop_count.c
-    > Author: 
-    > Mail: 
+    > Author:
+    > Mail:
     > Created Time: Fri 11 May 2018 9:12:19 AM CST
 ************************************************************************/
 
@@ -26,7 +26,8 @@ header_type meta_t {
         ip_to_hc_bitmap: HC_BITMAP_SIZE; // Hop Count bitmap in IP2HC
         tcp_session_map_index: TCP_SESSION_MAP_BITS;
         tcp_session_state: TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
-        tcp_session_seq: 32; // sequince number of SYN-ACK packet
+        tcp_seq_no: 32; // used for writing session_seq register
+        tcp_session_seq: 32; // sequence number of SYN-ACK packet
         ip_to_hc_index : IP_TO_HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
         hcf_state: 1; // 0: Learning 1: Filtering
@@ -38,13 +39,21 @@ header_type meta_t {
 metadata meta_t meta;
 
 // The state of the switch, maintained by CPU(control.py)
+// need `read` only
 register current_state {
     width : 1;
     instance_count : 1;
 }
+blackbox stateful_alu read_current_state {
+    reg: current_state;
+    update_lo_1_value: register_lo; /*= do not update*/
+    output_value: alu_lo;
+    output_dst: meta.hcf_state;
+}
 
 
-// TODO: check if count can be used in tofino
+
+// TODO: check if counter can be used in tofino
 // The number(sampled) of abnormal packet per period
 counter abnormal_counter {
     type : packets;
@@ -52,7 +61,7 @@ counter abnormal_counter {
 }
 
 action check_hcf(is_inspected) {
-    register_read(meta.hcf_state, current_state, 0);
+    read_current_state.execute_stateful_alu(0);
     modify_field(meta.is_inspected, is_inspected);
 }
 
@@ -126,12 +135,26 @@ table hc_compute_table_copy {
 }
 
 // The relation table between source IP and hop count
-// Now, IP2HC use source IP's 23bit-prefix's hash value as index 
+// Now, IP2HC use source IP's 23bit-prefix's hash value as index
 // and store hop-count's bit-map(Most hop count smaller than 30)
+// need `read` and `write`
 register ip_to_hc {
     width : HC_BITMAP_SIZE;
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
+blackbox stateful_alu read_ip_to_hc {
+    reg: ip_to_hc;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.ip_to_hc_bitmap;
+}
+blackbox stateful_alu write_ip_to_hc {
+    reg: ip_to_hc;
+    update_lo_1_value: meta.ip_to_hc_bitmap;
+    output_value: alu_lo;
+    output_dst: meta.ip_to_hc_bitmap;
+}
+
 
 field_list ipsrc_hash_fields {
     ipv4.srcAddr;
@@ -150,7 +173,7 @@ action inspect_hc() {
         meta.ip_to_hc_index, 0,
         ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
     );
-    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
+    read_ip_to_hc.execute_stateful_alu(meta.ip_to_hc_index);
 }
 
 // Get the origin hop count of this source IP
@@ -187,10 +210,10 @@ action filtering_other_abnormal() {
 
 // If the packet is judged as abnormal because its suspected hop-count,
 // handle it according to the switch state and whether the packet is sampled.
-// For learning state: if the packet is sampled, just update abnormal_counter 
-// and tag it as normal(don't drop it); if the packet is not sampled, it won't 
+// For learning state: if the packet is sampled, just update abnormal_counter
+// and tag it as normal(don't drop it); if the packet is not sampled, it won't
 // go through this table because switch don't check its hop count.
-// For filtering state, every abnormal packets should be dropped but update 
+// For filtering state, every abnormal packets should be dropped but update
 // abnormal_counter specially for these sampled.
 table hc_abnormal_table {
     reads {
@@ -237,37 +260,33 @@ field_list_calculation reverse_tcp_session_map_hash {
 }
 
 action lookup_session_map() {
+    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    register_read(
-        meta.tcp_session_state, session_state, 
-        meta.tcp_session_map_index
-    );
-    register_read(
-        meta.tcp_session_seq, session_seq,
-        meta.tcp_session_map_index
-    );
+    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    /* integrated hash version */
+    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 action lookup_reverse_session_map() {
+    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         reverse_tcp_session_map_hash,
         TCP_SESSION_MAP_SIZE
     );
-    register_read(
-        meta.tcp_session_state, session_state, 
-        meta.tcp_session_map_index
-    );
-    register_read(
-        meta.tcp_session_seq, session_seq,
-        meta.tcp_session_map_index
-    );
+    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    /* integrated hash version */
+    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    // read_session_seq.execute_statefu/l_alu_from_hash(tcp_session_map_hash);
 }
 
-// Get packets' tcp session information. Notice: dual direction packets in one 
+// Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
 table session_check_table {
     reads {
@@ -281,20 +300,48 @@ table session_check_table {
 }
 
 // Store sesscon state for concurrent tcp connections
+// need `read` and `write`
 register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
+blackbox stateful_alu read_session_state {
+    reg: session_state;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_state;
+}
+blackbox stateful_alu write_session_state {
+    reg: session_state;
+    update_lo_1_value: meta.tcp_session_state;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_state;
+}
 
 // Store sesscon sequince number(SYN-ACK's) for concurrent tcp connections
+// need `read` and `write`
 register session_seq {
     width : 32;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
+blackbox stateful_alu read_session_seq {
+    reg: session_seq;
+    update_lo_1_value: register_lo;
+    output_value: alu_lo;
+    output_dst: meta.tcp_session_seq;
+}
+blackbox stateful_alu write_session_seq {
+    reg: session_seq;
+    update_lo_1_value: meta.tcp_seq_no;
+    output_value: alu_lo;
+    output_dst: meta.tcp_seqNo;
+}
 
 action init_session() {
-    register_write(session_state, meta.tcp_session_map_index, 1);
-    register_write(session_seq, meta.tcp_session_map_index, tcp.seqNo);
+    modify_field(meta.tcp_session_state, 1);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    modify_field(meta.tcp_seq_no, tcp.seqNo);
+    write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 
 // Someone is attempting to establish a connection from server
@@ -305,14 +352,15 @@ table session_init_table {
 }
 
 action complete_session() {
-    register_write(session_state, meta.tcp_session_map_index, 0);
+    modify_field(meta.tcp_session_state, 0);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
     modify_field_with_hash_based_offset(
         meta.ip_to_hc_index, 0,
         ipsrc_map_hash, IP_TO_HC_TABLE_SIZE
     );
-    register_read(meta.ip_to_hc_bitmap, ip_to_hc, meta.ip_to_hc_index);
+    read_ip_to_hc.execute_stateful_alu(meta.ip_to_hc_index);
     bit_or(meta.ip_to_hc_bitmap, meta.ip_to_hc_bitmap, 1 << meta.hop_count);
-    register_write(ip_to_hc, meta.ip_to_hc_index, meta.ip_to_hc_bitmap);
+    write_ip_to_hc.execute_stateful_alu(meta.ip_to_hc_index);
     tag_normal();
 }
 

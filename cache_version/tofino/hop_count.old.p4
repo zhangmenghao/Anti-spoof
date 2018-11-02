@@ -312,39 +312,47 @@ field_list_calculation reverse_tcp_session_map_hash {
     output_width : TCP_SESSION_MAP_BITS;
 }
 
-action calculate_session_map_index() {
+action lookup_session_map() {
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
+    read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
-action reverse_calculate_session_map_index() {
+action lookup_reverse_session_map() {
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
+    read_session_state.execute_stateful_alu_from_hash(reverse_tcp_session_map_hash);
+}
+action lookup_session_map_2() {
+    read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
+}
+
+action lookup_reverse_session_map_2() {
+    read_session_seq.execute_stateful_alu_from_hash(reverse_tcp_session_map_hash);
 }
 
 // Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
-table calculate_session_map_index_table {
+table session_check_table {
     reads {
         standard_metadata.ingress_port : exact;
     }
     actions {
-        calculate_session_map_index;
-        reverse_calculate_session_map_index;
+        lookup_session_map;
+        lookup_reverse_session_map;
     }
 }
-
-// Read session_seq from register into meta
-action read_session_seq_action {
-    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
-}
-table read_session_seq_table {
+table session_check_table_2 {
+    reads {
+        meta.session_check_flag : exact;
+    }
     actions {
-        read_session_seq_action;
+        lookup_session_map_2;
+        lookup_reverse_session_map_2;
     }
 }
 
@@ -354,25 +362,16 @@ register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
 }
-blackbox stateful_alu write_session_state_init {
+blackbox stateful_alu read_session_state {
     reg: session_state;
-    update_lo_1_value: 1;
+    update_lo_1_value: register_lo;
     output_value: alu_lo;
     output_dst: meta.tcp_session_state;
 }
-blackbox stateful_alu write_session_state_complete {
+blackbox stateful_alu write_session_state {
     reg: session_state;
-
-    condition_lo: register_lo == 1;
-    update_hi_1_predicate: condition_lo;
-    update_hi_1_value: 1;
-    update_hi_2_predicate: not condition_lo;
-    update_hi_2_value: 0;
-
-    update_lo_1_predicate: condition_lo;
-    update_lo_1_value: 0;
-
-    output_value: alu_hi;
+    update_lo_1_value: meta.tcp_session_state;
+    output_value: alu_lo;
     output_dst: meta.tcp_session_state;
 }
 
@@ -396,7 +395,7 @@ blackbox stateful_alu write_session_seq {
 }
 
 action init_session() {
-    write_session_state_init.execute_stateful_alu(meta.tcp_session_map_index);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
 }
 action init_session_2() {
     write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
@@ -415,6 +414,7 @@ table session_init_table_2 {
 }
 
 action prepare_to_init_session() {
+    modify_field(meta.tcp_session_state, 1);
     // store seqNo + 1 into register
     // later if the incoming packet has ackNo equal to the value stored in register
     // then it should be valid
@@ -428,7 +428,7 @@ table session_init_preparation_table {
 }
 
 action complete_session() {
-    write_session_state_complete.execute_stateful_alu(meta.tcp_session_map_index);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
 }
 action complete_session_2() {
     write_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
@@ -452,6 +452,16 @@ table session_complete_table_2 {
     actions {
         nop;
         complete_session_2;
+    }
+}
+
+action set_session_state_none() {
+    modify_field(meta.tcp_session_state, 0);
+}
+
+table set_session_state_none_table{
+    actions{
+        set_session_state_none;
     }
 }
 
@@ -547,7 +557,6 @@ table session_complete_update_table {
         session_complete_update;
     }
 }
-blackbox stat
 
 control ingress {
     if (standard_metadata.ingress_port == CONTROLLER_PORT) {
@@ -557,56 +566,23 @@ control ingress {
     else {
         // Get basic infomation of switch
         apply(hcf_check_table);
-        // calculate session_map_index
-        apply(calculate_session_map_index_table);
+        // Get session state
+        apply(session_check_table);
+        apply(session_check_table_2);
         // Get ip address used to match ip_to_hc_table
         apply(get_ip_table);
         // Match ip_to_hc_table
         apply(ip_to_hc_table);
         apply(ip_to_hc_table_2);
-
-
-        // put all session_state related logics & tables here
-        if (meta.ip2hc_table_hit == 1) {
-            if(tcp.syn == 1 and tcp.ack == 1) {
-                // session_init
-                // if meta.ip2hc_table_hit == 1
-                // write 1 into session_state register
-                // write tcp.seqNo + 1 into session_seq table
-                apply(session_init_preparation_table);
-                apply(session_init_table);
-                apply(session_init_table_2);
-            }else {
-                // session_complete
-                // if meta.ip2hc_table_hit == 1
-                // and tcp_session_state == 1
-                // and tcp.ackNo == meta.tcp_session_seq
-                // if tcp.ack == 1
-                // write 0 into session_state register
-                // write hop_count into hop_count register
-                // tag_normal
-                // elif tcp.ack != 1
-                // tag_abnormal
-                apply(read_session_seq_table);
-                if(tcp.ackNo == meta.tcp_session_seq and tcp.ack == 1){
-                    // Legal connection, computes the hop count value and
-                    // updates the ip2hc table on the switch and controller
-                    apply(hc_compute_table_copy);
-                    apply(session_complete_table);
-                    if (meta.tcp_session_state == 1) {
-                        apply(session_complete_table_2);
-                        apply(session_complete_update_table);
-                    }
-                }
-            }
-        }
-
-
-
         if (tcp.syn == 1 and tcp.ack == 1) {
             // For syn/ack packets
             if (meta.ip2hc_table_hit == 0) {
                 apply(miss_packet_clone_table);
+            }
+            else {
+                apply(session_init_preparation_table);
+                apply(session_init_table);
+                apply(session_init_table_2);
             }
             apply(packet_normal_table);
         }
@@ -616,7 +592,16 @@ control ingress {
                 // Get session state
                 if (meta.tcp_session_state == 1) {
                     // The connection is wainting to be established
-                    if (tcp.ackNo != meta.tcp_session_seq or tcp.ack != 1) {
+                    if (tcp.ackNo == meta.tcp_session_seq) {
+                        // Legal connection, computes the hop count value and
+                        // updates the ip2hc table on the switch and controller
+                        apply(hc_compute_table_copy);
+                        apply(set_session_state_none_table);
+                        apply(session_complete_table);
+                        apply(session_complete_table_2);
+                        apply(session_complete_update_table);
+                    }
+                    else {
                         // Illegal connection attempt
                         apply(packet_abnormal_table);
                     }

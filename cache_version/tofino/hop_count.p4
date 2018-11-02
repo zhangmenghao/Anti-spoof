@@ -13,18 +13,15 @@
 #include "includes/parser.p4"
 
 #define HOP_COUNT_SIZE 8
-#define HC_BITMAP_SIZE 32
 #define HC_COMPUTE_TABLE_SIZE 8
-#define HC_COMPUTE_TWICE_TABLE_SIZE 3
 #define TCP_SESSION_MAP_BITS 8
 #define TCP_SESSION_MAP_SIZE 256 // 2^8
-#define TCP_SESSION_STATE_SIZE 1
+#define TCP_SESSION_STATE_SIZE 8
 #define IP_TO_HC_INDEX_BITS 23
 /* #define IP_TO_HC_TABLE_SIZE 65536 // 2^16 */
 #define IP_TO_HC_TABLE_SIZE 10 // 2^16
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
-#define HIT_BITS 8
 #define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
 #define PACKET_TRUNCATE_LENGTH 54
 #define CLONE_SPEC_VALUE 250
@@ -39,15 +36,16 @@ header_type meta_t {
         tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
         tcp_seq_no: 32; // used for writing session_seq register
         tcp_session_seq : 32; // sequince number of SYN-ACK packet
-        ip_to_hc_index : IP_TO_HC_INDEX_BITS;
-        sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
-        hcf_state : 1; // 0: Learning 1: Filtering
-        packet_tag : PACKET_TAG_BITS; // 0: Normal 1: Abnormal
-        is_inspected : 1; // 0: Not Inspected 1: Inspected
-        ip_for_match : 32; // IP address for searching the ip2hc table
-        ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
-        update_ip2hc : 1;
-        session_check_flag : 1; // used for session_check_table_2
+        ip_to_hc_index: IP_TO_HC_INDEX_BITS;
+        sample_value: SAMPLE_VALUE_BITS; // Used for sample packets
+        hcf_state: 1; // 0: Learning 1: Filtering
+        packet_tag: PACKET_TAG_BITS; // 0: Normal 1: Abnormal
+        is_inspected: 1; // 0: Not Inspected 1: Inspected
+        ip_for_match: 32; // IP address for searching the ip2hc table
+        ip2hc_table_hit: 1; // 0: Not Hit 1 : Hit
+        update_ip2hc: 1;
+        session_complete_flag: 1;
+        tcp_synack: 1;
     }
 }
 
@@ -56,8 +54,8 @@ metadata meta_t meta;
 // The state of the switch, maintained by CPU(control.py)
 // need `read` only
 register current_state {
-    width : 1;
-    instance_count : 1;
+    width: 8;
+    instance_count: 1;
 }
 blackbox stateful_alu read_current_state {
     reg: current_state;
@@ -70,8 +68,8 @@ blackbox stateful_alu read_current_state {
 // it was a `counter` in bmv2 version
 // write only
 register abnormal_counter {
-    width : 32;
-    instance_count : 1;
+    width: 32;
+    instance_count: 1;
 }
 blackbox stateful_alu update_abnormal_counter {
     reg: abnormal_counter;
@@ -84,7 +82,7 @@ blackbox stateful_alu update_abnormal_counter {
 // write only
 register miss_counter {
     width: 32;
-    instance_count : 1;
+    instance_count: 1;
 }
 blackbox stateful_alu update_miss_counter {
     reg: miss_counter;
@@ -339,7 +337,7 @@ table calculate_session_map_index_table {
 }
 
 // Read session_seq from register into meta
-action read_session_seq_action {
+action read_session_seq_action() {
     read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 table read_session_seq_table {
@@ -363,14 +361,34 @@ blackbox stateful_alu write_session_state_init {
 blackbox stateful_alu write_session_state_complete {
     reg: session_state;
 
-    condition_lo: register_lo == 1;
-    update_hi_1_predicate: condition_lo;
+    condition_hi: register_lo == 1;
+    update_hi_1_predicate: condition_hi;
     update_hi_1_value: 1;
-    update_hi_2_predicate: not condition_lo;
+    update_hi_2_predicate: not condition_hi;
     update_hi_2_value: 0;
 
+    condition_lo: (register_lo & meta.session_complete_flag) == 1;
     update_lo_1_predicate: condition_lo;
     update_lo_1_value: 0;
+
+    output_value: alu_hi;
+    output_dst: meta.tcp_session_state;
+}
+blackbox stateful_alu write_session_state {
+    reg: session_state;
+
+    update_hi_1_value: register_lo;
+
+    condition_hi: meta.tcp_synack == 1;
+    condition_lo: (register_lo & meta.session_complete_flag) == 1;
+    // if syn+ack, init session
+    update_lo_1_predicate: condition_hi;
+    update_lo_1_value: 1;
+    // if not syn+ack, and register_lo == 1, session_complete_flag == 1
+    // session state := 0
+    update_lo_2_predicate: condition_lo;
+    update_lo_2_value: 0;
+
 
     output_value: alu_hi;
     output_dst: meta.tcp_session_state;
@@ -379,7 +397,7 @@ blackbox stateful_alu write_session_state_complete {
 // Store sesscon sequince number(SYN-ACK's) for concurrent tcp connections
 // need `read` and `write`
 register session_seq {
-    width : 32;
+    width: 32;
     instance_count : TCP_SESSION_MAP_SIZE;
 }
 blackbox stateful_alu read_session_seq {
@@ -390,9 +408,17 @@ blackbox stateful_alu read_session_seq {
 }
 blackbox stateful_alu write_session_seq {
     reg: session_seq;
-    update_lo_1_value: meta.tcp_seq_no;
+    update_lo_1_value: tcp.seqNo + 1;
     output_value: alu_lo;
     output_dst: meta.tcp_seq_no;
+}
+action session_op() {
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+}
+table session_table {
+    actions {
+        session_op;
+    }
 }
 
 action init_session() {
@@ -414,19 +440,6 @@ table session_init_table_2 {
     }
 }
 
-action prepare_to_init_session() {
-    // store seqNo + 1 into register
-    // later if the incoming packet has ackNo equal to the value stored in register
-    // then it should be valid
-    add(meta.tcp_seq_no, tcp.seqNo, 1);
-}
-
-table session_init_preparation_table {
-    actions {
-        prepare_to_init_session;
-    }
-}
-
 action complete_session() {
     write_session_state_complete.execute_stateful_alu(meta.tcp_session_map_index);
 }
@@ -437,21 +450,30 @@ action complete_session_2() {
 
 // Establish the connection, and update IP2HC
 table session_complete_table {
-    reads {
-        tcp.ack : exact;
-    }
     actions {
-        tag_abnormal;
         complete_session;
     }
 }
 table session_complete_table_2 {
-    reads {
-        meta.packet_tag : exact; /*normal: 0*/
-    }
     actions {
-        nop;
         complete_session_2;
+    }
+}
+action mark_syn_ack() {
+    modify_field(meta.tcp_synack, 1);
+}
+table mark_syn_ack_table {
+    actions {
+        mark_syn_ack;
+    }
+}
+
+action session_complete_condition_cal() {
+    modify_field(meta.session_complete_flag, 1);
+}
+table mark_session_complete_condition_table {
+    actions {
+        session_complete_condition_cal;
     }
 }
 
@@ -547,7 +569,6 @@ table session_complete_update_table {
         session_complete_update;
     }
 }
-blackbox stat
 
 control ingress {
     if (standard_metadata.ingress_port == CONTROLLER_PORT) {
@@ -564,6 +585,8 @@ control ingress {
         // Match ip_to_hc_table
         apply(ip_to_hc_table);
         apply(ip_to_hc_table_2);
+        // Compute packet's hop count and refer to its origin hop count
+        apply(hc_compute_table);
 
 
         // put all session_state related logics & tables here
@@ -571,12 +594,23 @@ control ingress {
             if(tcp.syn == 1 and tcp.ack == 1) {
                 // session_init
                 // if meta.ip2hc_table_hit == 1
-                // write 1 into session_state register
                 // write tcp.seqNo + 1 into session_seq table
-                apply(session_init_preparation_table);
-                apply(session_init_table);
+                apply(mark_syn_ack_table);
                 apply(session_init_table_2);
             }else {
+                // session_complete
+                apply(read_session_seq_table);
+                if(tcp.ackNo == meta.tcp_session_seq and tcp.ack == 1){
+                    apply(mark_session_complete_condition_table);
+                }
+            }
+        }
+        if (meta.ip2hc_table_hit == 1) {
+            // Merged session_init table and session_complete table into one
+            apply(session_table);
+        }
+        if (meta.ip2hc_table_hit == 1) {
+            if(tcp.syn != 1 or tcp.ack != 1) {
                 // session_complete
                 // if meta.ip2hc_table_hit == 1
                 // and tcp_session_state == 1
@@ -587,16 +621,17 @@ control ingress {
                 // tag_normal
                 // elif tcp.ack != 1
                 // tag_abnormal
-                apply(read_session_seq_table);
-                if(tcp.ackNo == meta.tcp_session_seq and tcp.ack == 1){
+                if(meta.session_complete_flag == 1){
                     // Legal connection, computes the hop count value and
                     // updates the ip2hc table on the switch and controller
-                    apply(hc_compute_table_copy);
-                    apply(session_complete_table);
                     if (meta.tcp_session_state == 1) {
                         apply(session_complete_table_2);
                         apply(session_complete_update_table);
+                    }else {
+                        apply(hc_inspect_table);
                     }
+                }else {
+                    apply(hc_inspect_table);
                 }
             }
         }
@@ -623,9 +658,6 @@ control ingress {
                 }
                 else if (meta.tcp_session_state == 0) {
                     if (meta.is_inspected == 1) {
-                        // Compute packet's hop count and refer to its origin hop count
-                        apply(hc_compute_table);
-                        apply(hc_inspect_table);
                         if (meta.packet_hop_count != meta.ip2hc_hop_count) {
                             // It's abnormal
                             apply(hc_abnormal_table);

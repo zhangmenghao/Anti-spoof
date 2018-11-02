@@ -379,7 +379,10 @@ blackbox stateful_alu write_session_seq {
 action init_session() {
     modify_field(meta.tcp_session_state, 1);
     write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
-    modify_field(meta.tcp_seq_no, tcp.seqNo);
+    // store seqNo + 1
+    // ater if the incoming packet has ackNo equal to the value stored in register
+    // then it should be valid
+    modify_field(meta.tcp_seq_no, tcp.seqNo + 1);
     write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 
@@ -529,7 +532,7 @@ control ingress {
                 // Get session state
                 if (meta.tcp_session_state == 1) {
                     // The connection is wainting to be established
-                    if (tcp.ackNo == meta.tcp_session_seq + 1) {
+                    if (tcp.ackNo == meta.tcp_session_seq1) {
                         // Legal connection, computes the hop count value and
                         // updates the ip2hc table on the switch and controller
                         apply(hc_compute_table_copy);

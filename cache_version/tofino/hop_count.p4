@@ -47,6 +47,7 @@ header_type meta_t {
         ip_for_match : 32; // IP address for searching the ip2hc table
         ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
         update_ip2hc : 1;
+        session_check_flag : 1; // used for session_check_table_2
     }
 }
 
@@ -224,13 +225,15 @@ action table_miss() {
 
 action table_hit(index) {
     modify_field(meta.ip_to_hc_index, index);
-    update_hit_count.execute_stateful_alu(index);
     modify_field(meta.ip2hc_table_hit, 1);
+}
+action table_hit_2() {
+    update_hit_count.execute_stateful_alu(meta.ip_to_hc_index);
 }
 
 // The ip2hc table, if the current packet hits the ip2hc table, action
 // table_hit is executed, otherwise action table_miss is executed
-table ip_to_hc_table {
+table ip_to_hc_table { /* update table_miss counter, and modify meta field */
     reads {
         meta.ip_for_match : exact;
     }
@@ -239,6 +242,15 @@ table ip_to_hc_table {
         table_hit;
     }
     max_size : IP_TO_HC_TABLE_SIZE;
+}
+table ip_to_hc_table_2 { /* update table_hit counter according to meta field */
+    reads {
+        meta.ip2hc_table_hit : exact; /* 1 for hit, 0 for nop */
+    }
+    actions {
+        nop;
+        table_hit_2;
+    }
 }
 
 action learning_abnormal() {
@@ -301,28 +313,25 @@ field_list_calculation reverse_tcp_session_map_hash {
 }
 
 action lookup_session_map() {
-    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    // read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
-    // read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
-    /* integrated hash version */
     read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
-    read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 action lookup_reverse_session_map() {
-    /* dedicated hash version */
     modify_field_with_hash_based_offset(
         meta.tcp_session_map_index, 0,
         reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    // read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
-    // read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
-    /* integrated hash version */
     read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+}
+action lookup_session_map_2() {
+    read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
+}
+
+action lookup_reverse_session_map_2() {
     read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
@@ -335,6 +344,15 @@ table session_check_table {
     actions {
         lookup_session_map;
         lookup_reverse_session_map;
+    }
+}
+table session_check_table_2 {
+    reads {
+        meta.session_check_flag : exact;
+    }
+    actions {
+        lookup_session_map_2;
+        lookup_reverse_session_map_2;
     }
 }
 
@@ -377,8 +395,10 @@ blackbox stateful_alu write_session_seq {
 }
 
 action init_session() {
-    write_session_state.execute_stsession_init_tablep_index);
-    write_session_seq.execute_statsession_init_tableindex);
+    write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+}
+action init_session_2() {
+    write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 
 // Someone is attempting to establsession_init_table
@@ -387,8 +407,13 @@ table session_init_table {
         init_session;
     }
 }
+table session_init_table_2 {
+    actions {
+        init_session_2;
+    }
+}
 
-action prepare_to_init_session() {session_init_table
+action prepare_to_init_session() {
     modify_field(meta.tcp_session_state, 1);
     // store seqNo + 1 into register
     // later if the incoming packet has ackNo equal to the value stored in register
@@ -404,6 +429,8 @@ table session_init_preparation_table {
 
 action complete_session() {
     write_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+}
+action complete_session_2() {
     write_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
     tag_normal();
 }
@@ -416,6 +443,15 @@ table session_complete_table {
     actions {
         tag_abnormal;
         complete_session;
+    }
+}
+table session_complete_table_2 {
+    reads {
+        meta.packet_tag : exact; /*normal: 0*/
+    }
+    actions {
+        nop;
+        complete_session_2;
     }
 }
 
@@ -532,10 +568,12 @@ control ingress {
         apply(hcf_check_table);
         // Get session state
         apply(session_check_table);
+        apply(session_check_table_2);
         // Get ip address used to match ip_to_hc_table
         apply(get_ip_table);
         // Match ip_to_hc_table
         apply(ip_to_hc_table);
+        apply(ip_to_hc_table_2);
         if (tcp.syn == 1 and tcp.ack == 1) {
             // For syn/ack packets
             if (meta.ip2hc_table_hit == 0) {
@@ -544,6 +582,7 @@ control ingress {
             else {
                 apply(session_init_preparation_table);
                 apply(session_init_table);
+                apply(session_init_table_2);
             }
             apply(packet_normal_table);
         }
@@ -559,6 +598,7 @@ control ingress {
                         apply(hc_compute_table_copy);
                         apply(set_session_state_none_table);
                         apply(session_complete_table);
+                        apply(session_complete_table_2);
                         apply(session_complete_update_table);
                     }
                     else {
@@ -602,6 +642,6 @@ control ingress {
 control egress {
     // Judging whether to send a header or a whole packet
     if (standard_metadata.egress_port == CONTROLLER_PORT) {
-        apply(modify_field_and_truncate_table);
+        /* apply(modify_field_and_truncate_table); */
     }
 }

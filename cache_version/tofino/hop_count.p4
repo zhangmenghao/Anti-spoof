@@ -306,11 +306,11 @@ action lookup_session_map() {
         meta.tcp_session_map_index, 0,
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
-    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    // read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    // read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
     /* integrated hash version */
-    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
-    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 action lookup_reverse_session_map() {
@@ -319,11 +319,11 @@ action lookup_reverse_session_map() {
         meta.tcp_session_map_index, 0,
         reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
-    read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
-    read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
+    // read_session_state.execute_stateful_alu(meta.tcp_session_map_index);
+    // read_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
     /* integrated hash version */
-    // read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
-    // read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    read_session_state.execute_stateful_alu_from_hash(tcp_session_map_hash);
+    read_session_seq.execute_stateful_alu_from_hash(tcp_session_map_hash);
 }
 
 // Get packets' tcp session information. Notice: dual direction packets in one

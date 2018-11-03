@@ -99,7 +99,7 @@ action check_hcf(is_inspected) {
 // and judge whether the packet should be inspect by HCF
 table hcf_check_table {
     reads {
-        standard_metadata.ingress_port : exact;
+        ig_intr_md.ingress_port : exact;
     }
     actions { check_hcf; }
 }
@@ -328,7 +328,7 @@ action reverse_calculate_session_map_index() {
 // flow should belong to same tcp session and use same hash value
 table calculate_session_map_index_table {
     reads {
-        standard_metadata.ingress_port : exact;
+        ig_intr_md.ingress_port : exact;
     }
     actions {
         calculate_session_map_index;
@@ -478,14 +478,14 @@ table mark_session_complete_condition_table {
 }
 
 action forward_l2(egress_port) {
-    modify_field(standard_metadata.egress_spec, egress_port);
+    modify_field(ig_intr_md_for_tm.ucast_egress_port, egress_port);
 }
 
 // Forward table, now it just support layer 2
 table l2_forward_table {
     reads {
         meta.packet_tag : exact;
-        standard_metadata.ingress_port : exact;
+        ig_intr_md.ingress_port : exact;
     }
     actions {
         _drop;
@@ -500,7 +500,7 @@ field_list meta_data_for_clone {
 }
 
 action packet_clone() {
-    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    //modify_field(ig_intr_md_for_tm.ucast_egress_port, CONTROLLER_PORT);
     clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
 }
 
@@ -557,7 +557,7 @@ table packet_miss_table {
 
 action session_complete_update() {
     //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
-    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    //modify_field(ig_intr_md_for_tm.ucast_egress_port, CONTROLLER_PORT);
     modify_field(meta.update_ip2hc, 1);
     clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
 }
@@ -571,7 +571,7 @@ table session_complete_update_table {
 }
 
 control ingress {
-    if (standard_metadata.ingress_port == CONTROLLER_PORT) {
+    if (ig_intr_md.ingress_port == CONTROLLER_PORT) {
         // Packets from controller must be normal packets
         apply(packet_normal_table);
     }

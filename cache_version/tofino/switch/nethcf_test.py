@@ -26,7 +26,7 @@ import sys
 import time
 import unittest
 
-from synproxy.p4_pd_rpc.ttypes import *
+from nethcf.p4_pd_rpc.ttypes import *
 from pltfm_pm_rpc.ttypes import *
 from pal_rpc.ttypes import *
 from ptf import config
@@ -114,7 +114,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
     def runTest(self):
         self.client.init_set_default_action_init_action_(self.sess_hdl,self.dev_tgt,
-        synproxy_init_action__action_spec_t(16000,16000));
+        nethcf_init_action__action_spec_t(16000,16000));
 
         # TODO: self.client.*table*_set_default_action_*action*(self.sess_hdl, self.dev_tgt);
 
@@ -126,8 +126,6 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
 
     def tearDown(self):
-        print
-
         if (test_param_get('setup') != True and \
             test_param_get('cleanup') != True) \
             or test_param_get('cleanup') == True:

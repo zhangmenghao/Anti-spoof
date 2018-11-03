@@ -200,7 +200,7 @@ DP_CONFIG = {
         {
             "table": "ip_to_hc_table_2",
             "action": "nop",
-            "match": [0], # [num, type, ...]
+            "match": [1, "exact"], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {

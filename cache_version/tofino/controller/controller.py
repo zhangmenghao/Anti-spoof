@@ -122,7 +122,7 @@ class NetHCFController:
             elif pkt[TCP].flags == FLAG_ACK:
                 state, seq_no = self.tcp_session.read(pkt[IP].src)
                 # This is SYN ACK ACK.
-                if state == 1 and pkt[IP].ack == seq_no + 1:
+                if state == 1 and pkt[TCP].ack == seq_no + 1:
                     # The connection is established
                     self.tcp_session.update(pkt[IP].src, 0, 0)
                     self.ip2hc.update(pkt[IP].src, hop_count)

@@ -48,6 +48,59 @@ NETHCF_SWITCH_CONFIG = {
     "hcf_state": "current_state"
 }
 
+DP_CONFIG = {
+    "sess_hdl": None,
+    "dev_tgt": None,
+    "hw_sync_flag": None,
+    "set_default": {
+        "hcf_check_table": {
+            "action": "check_hcf",
+            "parameter": [1, 1] # [Num, ...]
+        },
+        "packet_normal_table": {
+            "action": "tag_normal",
+            "parameter": [0] # [Num, ...]
+        },
+        "packet_abnormal_table": {
+            "action": "tag_abnormal",
+            "parameter": [0] # [Num, ...]
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "parameter": [1, 255] # [Num, ...]
+        },
+        "hc_inspect_table": {
+            "action": "inspect_hc",
+            "parameter": [0] # [Num, ...]
+        },
+        "get_ip_table": {
+            "action": "get_src_ip",
+            "parameter": [0] # [Num, ...]
+        },
+        "ip_to_hc_table": {
+            "action": "table_miss",
+            "parameter": [0] # [Num, ...]
+        },
+        "ip_to_hc_table_2": {
+            "action": "nop",
+            "parameter": [0] # [Num, ...]
+        },
+    },
+    "table_add": {
+        "hcf_check_table": {
+            "action": "check_hcf",
+            "match": [1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [0, 29]], # [num, type, ...]
+            "parameter": [1, 30], # [Num, ...]
+            "priority": 0
+        },
+    }
+}
+
 DEBUG_OPTION = True
 
 def impact_factor_function(total_matched, last_matched):

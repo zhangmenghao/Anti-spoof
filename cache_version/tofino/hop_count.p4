@@ -141,17 +141,6 @@ table hc_compute_table {
     max_size : HC_COMPUTE_TABLE_SIZE;
 }
 
-// Another for different pipeline
-table hc_compute_table_copy {
-    reads {
-        ipv4.ttl : range;
-    }
-    actions {
-        compute_hc;
-    }
-    max_size: HC_COMPUTE_TABLE_SIZE;
-}
-
 action inspect_hc() {
     read_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
 }
@@ -352,28 +341,6 @@ register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
 }
-blackbox stateful_alu write_session_state_init {
-    reg: session_state;
-    update_lo_1_value: 1;
-    output_value: alu_lo;
-    output_dst: meta.tcp_session_state;
-}
-blackbox stateful_alu write_session_state_complete {
-    reg: session_state;
-
-    condition_hi: register_lo == 1;
-    update_hi_1_predicate: condition_hi;
-    update_hi_1_value: 1;
-    update_hi_2_predicate: not condition_hi;
-    update_hi_2_value: 0;
-
-    condition_lo: (register_lo & meta.session_complete_flag) == 1;
-    update_lo_1_predicate: condition_lo;
-    update_lo_1_value: 0;
-
-    output_value: alu_hi;
-    output_dst: meta.tcp_session_state;
-}
 blackbox stateful_alu write_session_state {
     reg: session_state;
 
@@ -421,39 +388,23 @@ table session_table {
     }
 }
 
-action init_session() {
-    write_session_state_init.execute_stateful_alu(meta.tcp_session_map_index);
-}
 action init_session_2() {
     write_session_seq.execute_stateful_alu(meta.tcp_session_map_index);
 }
 
 // Someone is attempting to establsession_init_table
-table session_init_table {
-    actions {
-        init_session;
-    }
-}
 table session_init_table_2 {
     actions {
         init_session_2;
     }
 }
 
-action complete_session() {
-    write_session_state_complete.execute_stateful_alu(meta.tcp_session_map_index);
-}
 action complete_session_2() {
     write_hop_count.execute_stateful_alu(meta.ip_to_hc_index);
     tag_normal();
 }
 
 // Establish the connection, and update IP2HC
-table session_complete_table {
-    actions {
-        complete_session;
-    }
-}
 table session_complete_table_2 {
     actions {
         complete_session_2;
@@ -495,7 +446,6 @@ table l2_forward_table {
 
 // Metadata used in clone function
 field_list meta_data_for_clone {
-    standard_metadata;
     meta;
 }
 
@@ -520,14 +470,14 @@ table miss_packet_clone_table_copy {
 
 action modify_field_and_truncate() {
     modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
-    truncate(PACKET_TRUNCATE_LENGTH);
+    // truncate(PACKET_TRUNCATE_LENGTH);
 }
 
 action nop() {
 }
 
 action only_truncate() {
-    truncate(PACKET_TRUNCATE_LENGTH);
+    // truncate(PACKET_TRUNCATE_LENGTH);
 }
 
 // Only the packets' header are send to controller
@@ -688,7 +638,7 @@ control ingress {
 
 control egress {
     // Judging whether to send a header or a whole packet
-    if (standard_metadata.egress_port == CONTROLLER_PORT) {
-        /* apply(modify_field_and_truncate_table); */
+    if (ig_intr_md_for_tm.ucast_egress_port == CONTROLLER_PORT) {
+        apply(modify_field_and_truncate_table);
     }
 }

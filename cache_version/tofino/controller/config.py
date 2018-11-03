@@ -85,18 +85,179 @@ DP_CONFIG = {
             "action": "nop",
             "parameter": [0] # [Num, ...]
         },
+        "hc_abnormal_table": {
+            "action": "filtering_abnormal",
+            "parameter": [0] # [Num, ...]
+        },
+        "calculate_session_map_index_table": {
+            "action": "calculate_session_map_index",
+            "parameter": [0] # [Num, ...]
+        },
+        "read_session_seq_table": {
+            "action": "read_session_seq_action",
+            "parameter": [0] # [Num, ...]
+        },
+        "session_table": {
+            "action": "session_op",
+            "parameter": [0] # [Num, ...]
+        },
+        "session_init_table_2": {
+            "action": "init_session_2",
+            "parameter": [0] # [Num, ...]
+        },
+        "session_complete_table_2": {
+            "action": "complete_session_2",
+            "parameter": [0] # [Num, ...]
+        },
+        "mark_syn_ack_table": {
+            "action": "mark_syn_ack",
+            "parameter": [0] # [Num, ...]
+        },
+        "mark_session_complete_condition_table": {
+            "action": "session_complete_condition_cal",
+            "parameter": [0] # [Num, ...]
+        },
+        "l2_forward_table": {
+            "action": "_drop",
+            "parameter": [0] # [Num, ...]
+        },
+        "miss_packet_clone_table": {
+            "action": "packet_clone",
+            "parameter": [0] # [Num, ...]
+        },
+        "miss_packet_clone_table_copy": {
+            "action": "packet_clone",
+            "parameter": [0] # [Num, ...]
+        },
+        "modify_field_and_truncate_table": {
+            "action": "nop",
+            "parameter": [0] # [Num, ...]
+        },
+        "packet_miss_table": {
+            "action": "tag_abnormal",
+            "parameter": [0] # [Num, ...]
+        },
+        "session_complete_update_table": {
+            "action": "session_complete_update",
+            "parameter": [0] # [Num, ...]
+        },
     },
     "table_add": {
         "hcf_check_table": {
             "action": "check_hcf",
-            "match": [1, "exact", 1], # [num, type, ...]
-            "parameter": [0], # [Num, ...]
+            "match": [1, "exact", 2], # [num, type, ...]
+            "parameter": [1, 0], # [Num, ...]
         },
         "hc_compute_table": {
             "action": "compute_hc",
             "match": [1, "range", [0, 29]], # [num, type, ...]
             "parameter": [1, 30], # [Num, ...]
             "priority": 0
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [30, 31]], # [num, type, ...]
+            "parameter": [1, 32], # [Num, ...]
+            "priority": 0
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [32, 59]], # [num, type, ...]
+            "parameter": [1, 60], # [Num, ...]
+            "priority": 0
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [60, 64]], # [num, type, ...]
+            "parameter": [1, 64], # [Num, ...]
+            "priority": 0
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [65, 128]], # [num, type, ...]
+            "parameter": [1, 128], # [Num, ...]
+            "priority": 0
+        },
+        "hc_compute_table": {
+            "action": "compute_hc",
+            "match": [1, "range", [129, 254]], # [num, type, ...]
+            "parameter": [1, 255], # [Num, ...]
+            "priority": 0
+        },
+        "get_ip_table": {
+            "action": "get_des_ip",
+            "match": [1, "exact", 1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "ip_to_hc_table_2": {
+            "action": "nop",
+            "match": [0], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "ip_to_hc_table_2": {
+            "action": "table_hit_2",
+            "match": [1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "hc_abnormal_table": {
+            "action": "learning_abnormal",
+            "match": [1, "exact", 0], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "hc_abnormal_table": {
+            "action": "filtering_abnormal",
+            "match": [1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "calculate_session_map_index_table": {
+            "action": "calculate_session_map_index",
+            "match": [1, "exact", 136], # TODO: ingress_port
+            "parameter": [0], # [Num, ...]
+        },
+        "calculate_session_map_index_table": {
+            "action": "reverse_calculate_session_map_index",
+            "match": [1, "exact", 128], # TODO: egress_port
+            "parameter": [0], # [Num, ...]
+        },
+        "l2_forward_table": {
+            "action": "forward_l2",
+            "match": [1, "exact", 0, "exact", 1], # TODO: ingress_port
+            "parameter": [1, 2], # TODO: egress_port
+        },
+        "l2_forward_table": {
+            "action": "forward_l2",
+            "match": [1, "exact", 0, "exact", 2], # TODO: ingress_port
+            "parameter": [1, 1], # TODO: egress_port
+        },
+        "l2_forward_table": {
+            "action": "forward_l2",
+            "match": [1, "exact", 0, "exact", 3], # TODO: ingress_port
+            "parameter": [1, 2], # TODO: egress_port
+        },
+        "modify_field_and_truncate_table": {
+            "action": "only_truncate",
+            "match": [1, "exact", 0, "exact", 0], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "modify_field_and_truncate_table": {
+            "action": "modify_field_and_truncate",
+            "match": [1, "exact", 0, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "modify_field_and_truncate_table": {
+            "action": "modify_field_and_truncate",
+            "match": [1, "exact", 1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "packet_miss_table": {
+            "action": "tag_normal",
+            "match": [1, "exact", 0], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
+        },
+        "packet_miss_table": {
+            "action": "tag_abnormal",
+            "match": [1, "exact", 1], # [num, type, ...]
+            "parameter": [0], # [Num, ...]
         },
     }
 }

@@ -31,9 +31,13 @@ TARGET_SWITCH = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
 TARGET_CODE = "hop_count.json"
 TARGET_PORT = 22223
 
+FILTERING_BATCH = 10
+
 NETHCF_SWITCH_CONFIG = {
     # project name in p4
     "project_name": "NetHCF",
+    # digest field list name
+    "digest_fields": "digest_fields",
     # counter name in p4
     "miss_counter": "miss_counter",
     "mismatch_counter": "abnormal_counter",
@@ -49,6 +53,7 @@ NETHCF_SWITCH_CONFIG = {
 }
 
 DP_CONFIG = {
+    "dp_interface": None,
     "sess_hdl": None,
     "dev_tgt": None,
     "hw_sync_flag": None,

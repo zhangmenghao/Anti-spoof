@@ -7,8 +7,9 @@ import struct
 from config import DEBUG_OPTION
 
 class NetHCFSwitchTofino:
-    def __init__(self, switch_config, dp_interface, dp_config):
+    def __init__(self, switch_config, dp_config):
         self.project_name = switch_config["project_name"] 
+        self.digest_fields = switch_config["digest_fields"]
         self.miss_counter = switch_config["miss_counter"]
         self.mismatch_counter = switch_config["mismatch_counter"]
         self.ip2hc_counter = switch_config["ip2hc_counter"]
@@ -20,7 +21,7 @@ class NetHCFSwitchTofino:
             "Please check whether the switch is well "
             "configured and the program is well compiled."
         )
-        self.dp_intfc = dp_interface # Data plane interface
+        self.dp_intfc = dp_config["dp_interface"] # Data plane interface
         self.dp_intfc_func = {}
         self.dp_intfc_spec = {}
         self.generate_dp_intfc_functions()
@@ -195,6 +196,17 @@ class NetHCFSwitchTofino:
             print(
                 "Error: Can't find add function for "
                 "IP2HC-MAT in the data plane interface!"
+            )
+            print self.error_hint_str
+        # get digest get
+        self.dp_intfc_func["digest_fields"] = {}
+        if hasattr(self.dp_intfc, "%s_get_digest" % self.digest_fields):
+            self.dp_intfc_func["digest_fields"]["get"] = \
+                    "%s_get_digest" % self.digest_fields
+        else:
+            print(
+                "Error: Can't find get function for "
+                "digest_fields in the data plane interface!"
             )
             print self.error_hint_str
 
@@ -378,6 +390,14 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], match_spec
         )
         print result
+        # Extracting info from the result is to be completed 
+
+    def get_digest(self):
+        if DEBUG_OPTION:
+            print("Debug: getting diget ...")
+        function_name = self.dp_intfc_func["digest_fields"]["get"]
+        result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
+        return result
         # Extracting info from the result is to be completed 
 
 class NetHCFSwitchBMv2:

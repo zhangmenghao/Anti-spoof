@@ -153,7 +153,7 @@ class NetHCFSwitchTofino:
                     # Extracting info from the result is to be completed 
                 else:
                     print(
-                        "Error: Can't find set_default function for %s "
+                        "Error: Can't find table add function for %s "
                         "in the data plane interface!" % mat_table
                     )
                     print self.error_hint_str

@@ -58,6 +58,7 @@ DP_CONFIG = {
     "dp_interface": None,
     "sess_hdl": None,
     "dev_tgt": None,
+    "dev": None,
     "hw_sync_flag": None,
     "set_default": {
         "hcf_check_table": {

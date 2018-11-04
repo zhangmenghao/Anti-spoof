@@ -99,10 +99,15 @@ class NetHCFSwitchTofino:
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
                         )(item["match"][2], item["match"][3])
+                    elif item["match"][0] == 2 and item["match"][1] == "exact" \
+                            and item["match"][3] == "exact":
+                        match_spec = eval(
+                            "%s_%s_match_spec_t" % (self.project_name,mat_table)
+                        )(item["match"][2], item["match"][4])
                     if item["parameter"][0] == 0:
                         result = getattr(
                             self.dp_intfc, 
-                            "%s_set_default_action_%s" % (mat_table, action)
+                            "%s_table_add_with_%s" % (mat_table, action)
                         )(
                             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
                             match_spec
@@ -113,7 +118,7 @@ class NetHCFSwitchTofino:
                         )(item["parameter"][1])
                         result = getattr(
                             self.dp_intfc, 
-                            "%s_set_default_action_%s" % (mat_table, action)
+                            "%s_table_add_with_%s" % (mat_table, action)
                         )(
                             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
                             match_spec, action_spec

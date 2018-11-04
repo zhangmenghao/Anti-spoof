@@ -26,7 +26,7 @@ from config import DEBUG_OPTION
 
 class NetHCFSwitchTofino:
     def __init__(self, switch_config, dp_config):
-        self.project_name = switch_config["project_name"] 
+        self.project_name = switch_config["project_name"]
         self.digest_fields = switch_config["digest_fields"]
         self.miss_counter = switch_config["miss_counter"]
         self.mismatch_counter = switch_config["mismatch_counter"]
@@ -56,10 +56,10 @@ class NetHCFSwitchTofino:
                 self.dp_intfc, "%s_set_default_action_%s" % (mat_table,action)
             ):
                 # if DEBUG_OPTION:
-                    # print 
+                    # print
                 if item["parameter"][0] == 0:
                     result = getattr(
-                        self.dp_intfc, 
+                        self.dp_intfc,
                         "%s_set_default_action_%s" % (mat_table, action)
                     )(self.dp_config["sess_hdl"], self.dp_config["dev_tgt"])
                 elif item["parameter"][0] == 1:
@@ -76,14 +76,14 @@ class NetHCFSwitchTofino:
                             "%s_%s_action_spec_t" % (self.project_name, action)
                         )(item["parameter"][1])
                         result = getattr(
-                            self.dp_intfc, 
+                            self.dp_intfc,
                             "%s_set_default_action_%s" % (mat_table, action)
                         )(
-                            self.dp_config["sess_hdl"], 
+                            self.dp_config["sess_hdl"],
                             self.dp_config["dev_tgt"], action_spec
                         )
                 print result
-                # Extracting info from the result is to be completed 
+                # Extracting info from the result is to be completed
             else:
                 print(
                     "Error: Can't find set_default function for %s "
@@ -106,6 +106,7 @@ class NetHCFSwitchTofino:
                 if hasattr(
                     self.dp_intfc, "%s_table_add_with_%s" % (mat_table, action)
                 ):
+                    priority_flag = False
                     if item["match"][0] == 1 and item["match"][1] == "exact":
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
@@ -114,19 +115,30 @@ class NetHCFSwitchTofino:
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
                         )(item["match"][2][0], item["match"][2][1])
+                        priority_flag = True
                     elif item["match"][0] == 2 and item["match"][1] == "exact" \
                             and item["match"][3] == "exact":
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
                         )(item["match"][2], item["match"][4])
                     if item["parameter"][0] == 0:
-                        result = getattr(
-                            self.dp_intfc, 
-                            "%s_table_add_with_%s" % (mat_table, action)
-                        )(
-                            self.dp_config["sess_hdl"], 
-                            self.dp_config["dev_tgt"], match_spec
-                        )
+                        if priority_flag:
+                            result = getattr(
+                                self.dp_intfc,
+                                "%s_table_add_with_%s" % (mat_table, action)
+                            )(
+                                self.dp_config["sess_hdl"],
+                                self.dp_config["dev_tgt"],
+                                match_spec, item["priority"]
+                            )
+                        else:
+                            result = getattr(
+                                self.dp_intfc,
+                                "%s_table_add_with_%s" % (mat_table, action)
+                            )(
+                                self.dp_config["sess_hdl"],
+                                self.dp_config["dev_tgt"], match_spec
+                            )
                     elif item["parameter"][0] == 1:
                         try:
                             eval("%s_%s_action_spec_t" \
@@ -142,16 +154,26 @@ class NetHCFSwitchTofino:
                             action_spec = eval(
                                 "%s_%s_action_spec_t"%(self.project_name,action)
                             )(item["parameter"][1])
-                            result = getattr(
-                                self.dp_intfc, 
-                                "%s_table_add_with_%s" % (mat_table, action)
-                            )(
-                                self.dp_config["sess_hdl"], 
-                                self.dp_config["dev_tgt"], 
-                                match_spec, action_spec
-                            )
+                            if priority_flag:
+                                result = getattr(
+                                    self.dp_intfc,
+                                    "%s_table_add_with_%s" % (mat_table, action)
+                                )(
+                                    self.dp_config["sess_hdl"],
+                                    self.dp_config["dev_tgt"],
+                                    match_spec, item["priority"], action_spec
+                                )
+                            else:
+                                result = getattr(
+                                    self.dp_intfc,
+                                    "%s_table_add_with_%s" % (mat_table, action)
+                                )(
+                                    self.dp_config["sess_hdl"],
+                                    self.dp_config["dev_tgt"],
+                                    match_spec, action_spec
+                                )
                     print result
-                    # Extracting info from the result is to be completed 
+                    # Extracting info from the result is to be completed
                 else:
                     print "%s_table_add_with_%s" % (mat_table, action)
                     print(
@@ -163,12 +185,12 @@ class NetHCFSwitchTofino:
     def generate_dp_intfc_functions(self):
         # For register_array, key is register name in controller
         # while value is its name in data plane
-        # Notice that the counters in bmv2 version 
+        # Notice that the counters in bmv2 version
         # is implemented by registers in tofino
         register_array = {
-            "miss_counter": self.miss_counter, 
-            "mismatch_counter": self.mismatch_counter, 
-            "ip2hc_counter": self.ip2hc_counter, 
+            "miss_counter": self.miss_counter,
+            "mismatch_counter": self.mismatch_counter,
+            "ip2hc_counter": self.ip2hc_counter,
             "ip2hc_register": self.ip2hc_register,
             "hcf_state": self.hcf_state
         }
@@ -209,7 +231,7 @@ class NetHCFSwitchTofino:
         # add and delete function for IP2HC-MAT
         self.dp_intfc_func["ip2hc_mat"] = {}
         if hasattr(
-            self.dp_intfc, 
+            self.dp_intfc,
             "%s_table_add_with_%s" % (self.ip2hc_mat, self.read_hc_function)
         ):
             self.dp_intfc_func["ip2hc_mat"]["add"] = \
@@ -280,11 +302,11 @@ class NetHCFSwitchTofino:
             print("Debug: reading miss counter...")
         function_name = self.dp_intfc_func["miss_counter"]["read"]
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
         return result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def reset_miss_counter(self):
         if DEBUG_OPTION:
@@ -294,18 +316,18 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def read_mismatch_counter(self):
         if DEBUG_OPTION:
             print("Debug: reading mismatch counter...")
         function_name = self.dp_intfc_func["mismatch_counter"]["read"]
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
         return result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def reset_mismatch_counter(self):
         if DEBUG_OPTION:
@@ -315,7 +337,7 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def read_hits_counter(self, cache_idx):
         if DEBUG_OPTION:
@@ -325,11 +347,11 @@ class NetHCFSwitchTofino:
             )
         function_name = self.dp_intfc_func["ip2hc_counter"]["read"]
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             cache_idx, self.dp_config["hw_sync_flag"]
         )
         return result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def reset_hits_counter(self):
         if DEBUG_OPTION:
@@ -339,32 +361,32 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def update_hc_value(self, cache_idx, hc_value):
         if DEBUG_OPTION:
             print(
-                "Debug: Updating item with cache index %d to %d ..."  
+                "Debug: Updating item with cache index %d to %d ..."
                 % (cache_idx, hc_value)
             )
         function_name = self.dp_intfc_func["ip2hc_register"]["write"]
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             cache_idx, hc_value
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def read_hcf_state(self):
         if DEBUG_OPTION:
             print("Debug: reading hcf state in switch...")
         function_name = self.dp_intfc_func["hcf_state"]["read"]
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
         return result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def switch_to_learning_state(self):
         if DEBUG_OPTION:
@@ -374,7 +396,7 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 0
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def switch_to_filtering_state(self):
         if DEBUG_OPTION:
@@ -384,38 +406,42 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 1
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat(self, ip_addr, cache_idx):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
-                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 
+                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."
                 % (ip_addr, cache_idx)
             )
         function_name = self.dp_intfc_func["ip2hc_mat"]["add"]
         match_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["match"])(ip_addr)
         action_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["action"])(cache_idx)
         result = getattr(self.dp_intfc, function_name)(
-            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
+            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             match_spec, action_spec
         )
         print result
-        # Extracting info(entry_handle) from the result is to be completed 
+        # Extracting info(entry_handle) from the result is to be completed
 
     # Delete entry into IP2HC Match-Action-Table
     def delete_from_ip2hc_mat(self, ip_addr):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         # Temporary method...
         ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
-                "Debug: deleting IP2HC-MAT with ip %s ..." % ip_addr 
+                "Debug: deleting IP2HC-MAT with ip %s ..." % ip_addr
             )
         function_name = self.dp_intfc_func["ip2hc_mat"]["delete"]
         match_spec = eval(self.dp_intfc_spec["ip2hc_mat"]["match"])(ip_addr)
@@ -423,15 +449,15 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], match_spec
         )
         print result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
     def get_digest(self):
-        if DEBUG_OPTION:
-            print("Debug: getting diget ...")
+        # if DEBUG_OPTION:
+        #     print("Debug: getting diget ...")
         function_name = self.dp_intfc_func["digest_fields"]["get"]
         result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
         return result
-        # Extracting info from the result is to be completed 
+        # Extracting info from the result is to be completed
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):
@@ -452,8 +478,8 @@ class NetHCFSwitchBMv2:
 
     def read_miss_counter_cmd(self):
         return (
-            '''echo "counter_read %s 0" | %s %s %d''' 
-            % (self.miss_counter, 
+            '''echo "counter_read %s 0" | %s %s %d'''
+            % (self.miss_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -475,8 +501,8 @@ class NetHCFSwitchBMv2:
 
     def reset_miss_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.miss_counter, 
+            '''echo "counter_reset %s" | %s %s %d'''
+            % (self.miss_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -490,8 +516,8 @@ class NetHCFSwitchBMv2:
 
     def read_mismatch_counter_cmd(self):
         return (
-            '''echo "counter_read %s 0" | %s %s %d''' 
-            % (self.mismatch_counter, 
+            '''echo "counter_read %s 0" | %s %s %d'''
+            % (self.mismatch_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -513,8 +539,8 @@ class NetHCFSwitchBMv2:
 
     def reset_mismatch_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.mismatch_counter, 
+            '''echo "counter_reset %s" | %s %s %d'''
+            % (self.mismatch_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -528,8 +554,8 @@ class NetHCFSwitchBMv2:
 
     def read_hits_counter_cmd(self, cache_idx):
         return (
-            '''echo "counter_read %s %d" | %s %s %d''' 
-            % (self.ip2hc_counter, cache_idx, 
+            '''echo "counter_read %s %d" | %s %s %d'''
+            % (self.ip2hc_counter, cache_idx,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -542,7 +568,7 @@ class NetHCFSwitchBMv2:
         result = os.popen(self.read_hits_counter_cmd(cache_idx)).read()
         try:
             packets_str = result[result.index("packets="):].split(',')[0]
-            match_times = int(packets_str.split('=')[1]) 
+            match_times = int(packets_str.split('=')[1])
         except:
             print "Error: Can't read hits counter!\n"
             print self.error_hint_str
@@ -554,8 +580,8 @@ class NetHCFSwitchBMv2:
 
     def reset_hits_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.ip2hc_counter, 
+            '''echo "counter_reset %s" | %s %s %d'''
+            % (self.ip2hc_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -569,18 +595,20 @@ class NetHCFSwitchBMv2:
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        # # Temporary method...
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
-                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 
+                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."
                 % (ip_addr, cache_idx)
             )
         return (
-            '''echo "table_add %s %s %s => %d" | %s %s %d''' 
-            % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx, 
+            '''echo "table_add %s %s %s => %d" | %s %s %d'''
+            % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -602,15 +630,15 @@ class NetHCFSwitchBMv2:
 
     def update_hc_value_cmd(self, cache_idx, hc_value):
         return (
-            '''echo "register_write %s %d %d" | %s %s %d''' 
-            % (self.ip2hc_register, cache_idx, hc_value, 
+            '''echo "register_write %s %d %d" | %s %s %d'''
+            % (self.ip2hc_register, cache_idx, hc_value,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def update_hc_value(self, cache_idx, hc_value):
         if DEBUG_OPTION:
             print(
-                "Debug: Updating item with cache index %d to %d ..."  
+                "Debug: Updating item with cache index %d to %d ..."
                 % (cache_idx, hc_value)
             )
         result = os.popen(self.update_hc_value_cmd(cache_idx, hc_value)).read()
@@ -619,16 +647,16 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
 
     # Add entry into IP2HC Match-Action-Table
-    def delete_from_ip2hc_mat_cmd(self, entry_handle): 
-        return ( '''echo "table_delete %s %d" | %s %s %d''' 
-            % (self.ip2hc_mat, entry_handle, 
+    def delete_from_ip2hc_mat_cmd(self, entry_handle):
+        return ( '''echo "table_delete %s %d" | %s %s %d'''
+            % (self.ip2hc_mat, entry_handle,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def delete_from_ip2hc_mat(self, entry_handle):
         if DEBUG_OPTION:
             print(
-                "Debug: deleting IP2HC-MAT with entry handle %d ..." 
+                "Debug: deleting IP2HC-MAT with entry handle %d ..."
                 % entry_handle
             )
         result = os.popen(self.delete_from_ip2hc_mat_cmd(entry_handle)).read()
@@ -638,18 +666,20 @@ class NetHCFSwitchBMv2:
 
     # Get the entry index in IP2HC-MAT
     def index_ip2hc_mat_cmd(self, ip_addr, cache_idx):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         return (
-            '''echo "table_dump_entry_from_key %s %s 0" | %s %s %d''' 
-            % (self.ip2hc_mat, ip_addr, 
+            '''echo "table_dump_entry_from_key %s %s 0" | %s %s %d'''
+            % (self.ip2hc_mat, ip_addr,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def read_hcf_state_cmd(self):
         return (
-            '''echo "register_read %s 0" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_read %s 0" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -673,8 +703,8 @@ class NetHCFSwitchBMv2:
 
     def switch_to_learning_state_cmd(self):
         return (
-            '''echo "register_write %s 0 0" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_write %s 0 0" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -691,8 +721,8 @@ class NetHCFSwitchBMv2:
 
     def switch_to_filtering_state_cmd(self):
         return (
-            '''echo "register_write %s 0 1" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_write %s 0 1" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 

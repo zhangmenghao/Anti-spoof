@@ -188,17 +188,17 @@ DP_CONFIG = {
         {
             "table": "hc_compute_table",
             "action": "compute_hc",
-            "match": [1, "range", [65, 128]], # [num, type, ...]
-            "parameter": [1, 128], # [Num, ...]
+            "match": [1, "range", [65, 127]], # [num, type, ...]
+            "parameter": [1, 127], # [Num, ...]
             "priority": 0
         },
-        {
-            "table": "hc_compute_table",
-            "action": "compute_hc",
-            "match": [1, "range", [129, 254]], # [num, type, ...]
-            "parameter": [1, 255], # [Num, ...]
-            "priority": 0
-        },
+        # {
+        #     "table": "hc_compute_table",
+        #     "action": "compute_hc",
+        #     "match": [1, "range", [129, 254]], # [num, type, ...]
+        #     "parameter": [1, 255], # [Num, ...]
+        #     "priority": 0
+        # },
         {
             "table": "get_ip_table",
             "action": "get_des_ip",
@@ -240,6 +240,12 @@ DP_CONFIG = {
             "action": "reverse_calculate_session_map_index",
             "match": [1, "exact", EGRESS_PORT], # egress_port
             "parameter": [0], # [Num, ...]
+        },
+        {
+            "table": "l2_forward_table",
+            "action": "forward_l2",
+            "match": [2, "exact", 0, "exact", EGRESS_PORT], # ingress_port
+            "parameter": [1, INGRESS_PORT], # egress_ports
         },
         {
             "table": "l2_forward_table",

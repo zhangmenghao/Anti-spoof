@@ -106,6 +106,7 @@ class NetHCFSwitchTofino:
                 if hasattr(
                     self.dp_intfc, "%s_table_add_with_%s" % (mat_table, action)
                 ):
+                    priority_flag = False
                     if item["match"][0] == 1 and item["match"][1] == "exact":
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
@@ -114,19 +115,30 @@ class NetHCFSwitchTofino:
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
                         )(item["match"][2][0], item["match"][2][1])
+                        priority_flag = True
                     elif item["match"][0] == 2 and item["match"][1] == "exact" \
                             and item["match"][3] == "exact":
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
                         )(item["match"][2], item["match"][4])
                     if item["parameter"][0] == 0:
-                        result = getattr(
-                            self.dp_intfc, 
-                            "%s_table_add_with_%s" % (mat_table, action)
-                        )(
-                            self.dp_config["sess_hdl"], 
-                            self.dp_config["dev_tgt"], match_spec
-                        )
+                        if priority_flag:
+                            result = getattr(
+                                self.dp_intfc, 
+                                "%s_table_add_with_%s" % (mat_table, action)
+                            )(
+                                self.dp_config["sess_hdl"], 
+                                self.dp_config["dev_tgt"], 
+                                match_spec, item["priority"]
+                            )
+                        else:
+                            result = getattr(
+                                self.dp_intfc, 
+                                "%s_table_add_with_%s" % (mat_table, action)
+                            )(
+                                self.dp_config["sess_hdl"], 
+                                self.dp_config["dev_tgt"], match_spec
+                            )
                     elif item["parameter"][0] == 1:
                         try:
                             eval("%s_%s_action_spec_t" \
@@ -142,14 +154,24 @@ class NetHCFSwitchTofino:
                             action_spec = eval(
                                 "%s_%s_action_spec_t"%(self.project_name,action)
                             )(item["parameter"][1])
-                            result = getattr(
-                                self.dp_intfc, 
-                                "%s_table_add_with_%s" % (mat_table, action)
-                            )(
-                                self.dp_config["sess_hdl"], 
-                                self.dp_config["dev_tgt"], 
-                                match_spec, action_spec
-                            )
+                            if priority_flag:
+                                result = getattr(
+                                    self.dp_intfc, 
+                                    "%s_table_add_with_%s" % (mat_table, action)
+                                )(
+                                    self.dp_config["sess_hdl"], 
+                                    self.dp_config["dev_tgt"], 
+                                    match_spec, item["priority"], action_spec
+                                )
+                            else:
+                                result = getattr(
+                                    self.dp_intfc, 
+                                    "%s_table_add_with_%s" % (mat_table, action)
+                                )(
+                                    self.dp_config["sess_hdl"], 
+                                    self.dp_config["dev_tgt"], 
+                                    match_spec, action_spec
+                                )
                     print result
                     # Extracting info from the result is to be completed 
                 else:

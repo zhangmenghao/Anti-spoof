@@ -93,6 +93,7 @@ class NetHCFSwitchTofino:
         # "table_add ..."
         for item in self.dp_config["table_add"]:
             mat_table = item["table"]
+            action = item["action"]
             try:
                 eval("%s_%s_match_spec_t" % (self.project_name, mat_table))
             except NameError:
@@ -112,7 +113,7 @@ class NetHCFSwitchTofino:
                     elif item["match"][0] == 1 and item["match"][1] == "range":
                         match_spec = eval(
                             "%s_%s_match_spec_t" % (self.project_name,mat_table)
-                        )(item["match"][2], item["match"][3])
+                        )(item["match"][2][0], item["match"][2][1])
                     elif item["match"][0] == 2 and item["match"][1] == "exact" \
                             and item["match"][3] == "exact":
                         match_spec = eval(

@@ -74,7 +74,8 @@ DP_CONFIG = {
         },
         "hc_compute_table": {
             "action": "compute_hc",
-            "parameter": [1, 255] # [Num, ...]
+            # "parameter": [1, 255] # [Num, ...]
+            "parameter": [1, 127] # [Num, ...]
         },
         "hc_inspect_table": {
             "action": "inspect_hc",
@@ -96,10 +97,10 @@ DP_CONFIG = {
             "action": "filtering_abnormal",
             "parameter": [0] # [Num, ...]
         },
-        "calculate_session_map_index_table": {
-            "action": "calculate_session_map_index",
-            "parameter": [0] # [Num, ...]
-        },
+        # "calculate_session_map_index_table": {
+            # "action": "calculate_session_map_index",
+            # "parameter": [0] # [Num, ...]
+        # },
         "read_session_seq_table": {
             "action": "read_session_seq_action",
             "parameter": [0] # [Num, ...]
@@ -136,10 +137,10 @@ DP_CONFIG = {
             "action": "packet_clone",
             "parameter": [0] # [Num, ...]
         },
-        "modify_field_and_truncate_table": {
-            "action": "nop",
-            "parameter": [0] # [Num, ...]
-        },
+        # "modify_field_and_truncate_table": {
+            # "action": "nop",
+            # "parameter": [0] # [Num, ...]
+        # },
         "packet_miss_table": {
             "action": "tag_abnormal",
             "parameter": [0] # [Num, ...]
@@ -246,24 +247,24 @@ DP_CONFIG = {
             "match": [2, "exact", 0, "exact", INGRESS_PORT], # ingress_port
             "parameter": [1, EGRESS_PORT], # egress_ports
         },
-        {
-            "table": "modify_field_and_truncate_table",
-            "action": "only_truncate",
-            "match": [2, "exact", 0, "exact", 0], # [num, type, ...]
-            "parameter": [0], # [Num, ...]
-        },
-        {
-            "table": "modify_field_and_truncate_table",
-            "action": "modify_field_and_truncate",
-            "match": [2, "exact", 0, "exact", 1], # [num, type, ...]
-            "parameter": [0], # [Num, ...]
-        },
-        {
-            "table": "modify_field_and_truncate_table",
-            "action": "modify_field_and_truncate",
-            "match": [2, "exact", 1, "exact", 1], # [num, type, ...]
-            "parameter": [0], # [Num, ...]
-        },
+        # {
+            # "table": "modify_field_and_truncate_table",
+            # "action": "only_truncate",
+            # "match": [2, "exact", 0, "exact", 0], # [num, type, ...]
+            # "parameter": [0], # [Num, ...]
+        # },
+        # {
+            # "table": "modify_field_and_truncate_table",
+            # "action": "modify_field_and_truncate",
+            # "match": [2, "exact", 0, "exact", 1], # [num, type, ...]
+            # "parameter": [0], # [Num, ...]
+        # },
+        # {
+            # "table": "modify_field_and_truncate_table",
+            # "action": "modify_field_and_truncate",
+            # "match": [2, "exact", 1, "exact", 1], # [num, type, ...]
+            # "parameter": [0], # [Num, ...]
+        # },
         {
             "table": "packet_miss_table",
             "action": "tag_normal",

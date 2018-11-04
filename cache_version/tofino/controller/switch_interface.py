@@ -55,6 +55,8 @@ class NetHCFSwitchTofino:
             if hasattr(
                 self.dp_intfc, "%s_set_default_action_%s" % (mat_table,action)
             ):
+                # if DEBUG_OPTION:
+                    # print 
                 if item["parameter"][0] == 0:
                     result = getattr(
                         self.dp_intfc, 
@@ -93,15 +95,13 @@ class NetHCFSwitchTofino:
             mat_table = item["table"]
             try:
                 eval("%s_%s_match_spec_t" % (self.project_name, mat_table))
-                eval("%s_%s_action_spec_t" % (self.project_name, action))
             except NameError:
                 print(
-                    "Error: Can't find specification of action %s or match "
-                    "for %s in the data plane interface!" % (action, mat_table)
+                    "Error: Can't find match specification for "
+                    "%s in the data plane interface!" % mat_table
                 )
                 print self.error_hint_str
             else:
-                # Currently, assume there is only 1 match field
                 if hasattr(
                     self.dp_intfc, "%s_table_add_with_%s" % (mat_table, action)
                 ):
@@ -123,20 +123,32 @@ class NetHCFSwitchTofino:
                             self.dp_intfc, 
                             "%s_table_add_with_%s" % (mat_table, action)
                         )(
-                            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
-                            match_spec
+                            self.dp_config["sess_hdl"], 
+                            self.dp_config["dev_tgt"], match_spec
                         )
                     elif item["parameter"][0] == 1:
-                        action_spec = eval(
-                            "%s_%s_action_spec_t" % (self.project_name, action)
-                        )(item["parameter"][1])
-                        result = getattr(
-                            self.dp_intfc, 
-                            "%s_table_add_with_%s" % (mat_table, action)
-                        )(
-                            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
-                            match_spec, action_spec
-                        )
+                        try:
+                            eval("%s_%s_action_spec_t" \
+                                 % (self.project_name, action))
+                        except NameError:
+                            print(
+                                "Error: Can't find specification of action %s "
+                                "or match for %s in the data plane interface!" \
+                                % (action, mat_table)
+                            )
+                            print self.error_hint_str
+                        else:
+                            action_spec = eval(
+                                "%s_%s_action_spec_t"%(self.project_name,action)
+                            )(item["parameter"][1])
+                            result = getattr(
+                                self.dp_intfc, 
+                                "%s_table_add_with_%s" % (mat_table, action)
+                            )(
+                                self.dp_config["sess_hdl"], 
+                                self.dp_config["dev_tgt"], 
+                                match_spec, action_spec
+                            )
                     print result
                     # Extracting info from the result is to be completed 
                 else:

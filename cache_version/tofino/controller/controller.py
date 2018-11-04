@@ -32,7 +32,7 @@ class NetHCFController:
         self.reset_period_counters()
     
     def run(self):
-        # self.initialize()
+        self.initialize()
         self.process_packets()
 
     def run_parallel(self):

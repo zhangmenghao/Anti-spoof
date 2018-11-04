@@ -19,6 +19,8 @@ LAMBDA = 0.1
 THETA = 20
 CACHE_SIZE = 10
 # CACHE_SIZE = 100000
+INGRESS_PORT = 128
+EGRESS_PORT = 136
 
 IP_SPACE_SIZE = 2**8
 # IP_SPACE_SIZE = 2**25
@@ -194,13 +196,13 @@ DP_CONFIG = {
         {
             "table": "get_ip_table",
             "action": "get_des_ip",
-            "match": [1, "exact", 1, "exact", 1], # [num, type, ...]
+            "match": [2, "exact", 1, "exact", 1], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {
             "table": "ip_to_hc_table_2",
             "action": "nop",
-            "match": [0], # [num, type, ...]
+            "match": [1, "exact", 0], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {
@@ -224,49 +226,37 @@ DP_CONFIG = {
         {
             "table": "calculate_session_map_index_table",
             "action": "calculate_session_map_index",
-            "match": [1, "exact", 136], # TODO: ingress_port
+            "match": [1, "exact", INGRESS_PORT], # ingress_port
             "parameter": [0], # [Num, ...]
         },
         {
             "table": "calculate_session_map_index_table",
             "action": "reverse_calculate_session_map_index",
-            "match": [1, "exact", 128], # TODO: egress_port
+            "match": [1, "exact", EGRESS_PORT], # egress_port
             "parameter": [0], # [Num, ...]
         },
         {
             "table": "l2_forward_table",
             "action": "forward_l2",
-            "match": [1, "exact", 0, "exact", 1], # TODO: ingress_port
-            "parameter": [1, 2], # TODO: egress_port
-        },
-        {
-            "table": "l2_forward_table",
-            "action": "forward_l2",
-            "match": [1, "exact", 0, "exact", 2], # TODO: ingress_port
-            "parameter": [1, 1], # TODO: egress_port
-        },
-        {
-            "table": "l2_forward_table",
-            "action": "forward_l2",
-            "match": [1, "exact", 0, "exact", 3], # TODO: ingress_port
-            "parameter": [1, 2], # TODO: egress_port
+            "match": [2, "exact", 0, "exact", INGRESS_PORT], # ingress_port
+            "parameter": [1, EGRESS_PORT], # egress_ports
         },
         {
             "table": "modify_field_and_truncate_table",
             "action": "only_truncate",
-            "match": [1, "exact", 0, "exact", 0], # [num, type, ...]
+            "match": [2, "exact", 0, "exact", 0], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {
             "table": "modify_field_and_truncate_table",
             "action": "modify_field_and_truncate",
-            "match": [1, "exact", 0, "exact", 1], # [num, type, ...]
+            "match": [2, "exact", 0, "exact", 1], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {
             "table": "modify_field_and_truncate_table",
             "action": "modify_field_and_truncate",
-            "match": [1, "exact", 1, "exact", 1], # [num, type, ...]
+            "match": [2, "exact", 1, "exact", 1], # [num, type, ...]
             "parameter": [0], # [Num, ...]
         },
         {

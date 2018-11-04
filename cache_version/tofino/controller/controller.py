@@ -5,7 +5,7 @@ from scapy.all import *
 from data_structure import IP2HC, TCP_Session
 from config import *
 # from switch import NetHCFSwitchBMv2
-from switch import NetHCFSwitchTofino 
+from switch_interface import NetHCFSwitchTofino 
 import time
 from multiprocessing import Process
 

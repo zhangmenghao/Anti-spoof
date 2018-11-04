@@ -37,7 +37,7 @@ FILTERING_BATCH = 10
 
 NETHCF_SWITCH_CONFIG = {
     # project name in p4
-    "project_name": "NetHCF",
+    "project_name": "nethcf",
     # digest field list name
     "digest_fields": "digest_fields",
     # counter name in p4

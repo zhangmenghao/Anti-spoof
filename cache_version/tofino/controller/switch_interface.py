@@ -34,24 +34,24 @@ class NetHCFSwitchTofino:
         for mat_table in self.dp_config["set_default"].keys():
             item = self.dp_config["set_default"][mat_table]
             action = item["action"]
-            try:
-                eval("%s_%s_action_spec_t" % (self.project_name, action))
-            except NameError:
-                print(
-                    "Error: Can't find specification of action %s for %s "
-                    "in the data plane interface!" % (action, mat_table)
-                )
-                print self.error_hint_str
-            else:
-                if hasattr(
-                    self.dp_intfc, "%s_set_default_action_%s"%(mat_table,action)
-                ):
-                    if item["parameter"][0] == 0:
-                        result = getattr(
-                            self.dp_intfc, 
-                            "%s_set_default_action_%s" % (mat_table, action)
-                        )(self.dp_config["sess_hdl"], self.dp_config["dev_tgt"])
-                    elif item["parameter"][0] == 1:
+            if hasattr(
+                self.dp_intfc, "%s_set_default_action_%s" % (mat_table,action)
+            ):
+                if item["parameter"][0] == 0:
+                    result = getattr(
+                        self.dp_intfc, 
+                        "%s_set_default_action_%s" % (mat_table, action)
+                    )(self.dp_config["sess_hdl"], self.dp_config["dev_tgt"])
+                elif item["parameter"][0] == 1:
+                    try:
+                        eval("%s_%s_action_spec_t" % (self.project_name,action))
+                    except NameError:
+                        print(
+                            "Error: Can't find specification of action %s for "
+                            "%s in the data plane interface!"%(action,mat_table)
+                        )
+                        print self.error_hint_str
+                    else:
                         action_spec = eval(
                             "%s_%s_action_spec_t" % (self.project_name, action)
                         )(item["parameter"][1])
@@ -59,17 +59,17 @@ class NetHCFSwitchTofino:
                             self.dp_intfc, 
                             "%s_set_default_action_%s" % (mat_table, action)
                         )(
-                            self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 
-                            action_spec
+                            self.dp_config["sess_hdl"], 
+                            self.dp_config["dev_tgt"], action_spec
                         )
-                    print result
-                    # Extracting info from the result is to be completed 
-                else:
-                    print(
-                        "Error: Can't find set_default function for %s "
-                        "in the data plane interface!" % mat_table
-                    )
-                    print self.error_hint_str
+                print result
+                # Extracting info from the result is to be completed 
+            else:
+                print(
+                    "Error: Can't find set_default function for %s "
+                    "in the data plane interface!" % mat_table
+                )
+                print self.error_hint_str
         # "table_add ..."
         for item in self.dp_config["table_add"]:
             mat_table = item["table"]
@@ -77,10 +77,6 @@ class NetHCFSwitchTofino:
                 eval("%s_%s_match_spec_t" % (self.project_name, mat_table))
                 eval("%s_%s_action_spec_t" % (self.project_name, action))
             except NameError:
-                print(
-                    "Error: Can't find match specification for "
-                    "IP2HC-MAT in the data plane interface!"
-                )
                 print(
                     "Error: Can't find specification of action %s or match "
                     "for %s in the data plane interface!" % (action, mat_table)

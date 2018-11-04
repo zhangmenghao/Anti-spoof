@@ -152,6 +152,7 @@ class NetHCFSwitchTofino:
                     print result
                     # Extracting info from the result is to be completed 
                 else:
+                    print "%s_table_add_with_%s" % (mat_table, action)
                     print(
                         "Error: Can't find table add function for %s "
                         "in the data plane interface!" % mat_table

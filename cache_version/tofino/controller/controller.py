@@ -4,15 +4,17 @@
 from scapy.all import *
 from data_structure import IP2HC, TCP_Session
 from config import *
-from switch import NetHCFSwitchBMv2
+# from switch import NetHCFSwitchBMv2
+from switch import NetHCFSwitchTofino 
 import time
 from multiprocessing import Process
 
 class NetHCFController:
     def __init__(self, iface, default_hc_list):
-        self.switch = NetHCFSwitchBMv2(
-            NETHCF_SWITCH_CONFIG, TARGET_SWITCH, TARGET_CODE, TARGET_PORT
-        )
+        # self.switch = NetHCFSwitchBMv2(
+            # NETHCF_SWITCH_CONFIG, TARGET_SWITCH, TARGET_CODE, TARGET_PORT
+        # )
+        self.switch = NetHCFSwitchTofino(NETHCF_SWITCH_CONFIG, DP_CONFIG)
         self.iface = iface
         self.ip2hc = IP2HC(impact_factor_function, default_hc_list);
         self.tcp_session = TCP_Session()
@@ -24,12 +26,13 @@ class NetHCFController:
 
     def initialize(self):
         self.hcf_state = 0
+        self.switch.initialize()
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
     
     def run(self):
-        self.initialize()
+        # self.initialize()
         self.process_packets()
 
     def run_parallel(self):
@@ -40,7 +43,18 @@ class NetHCFController:
         update_process.start()
     
     def process_packets(self):
-        sniff(iface=self.iface, prn=self.packets_callback())
+        while True:
+            if self.hcf_state == 0:
+                digest = self.switch.get_digest()
+                if len(digest.msg) == 0:
+                    continue
+                for digest_entry in digest.msg:
+                    self.process_packets_digest(digest_entry)
+            elif self.hcf_state == 1:
+                sniff(
+                    iface=self.iface, count=FILTERING_BATCH, 
+                    prn=self.packets_callback()
+                )
 
     # Nested function for passing "self" parameter to sniff's callback function
     def packets_callback(self):
@@ -122,7 +136,7 @@ class NetHCFController:
             elif pkt[TCP].flags == FLAG_ACK:
                 state, seq_no = self.tcp_session.read(pkt[IP].src)
                 # This is SYN ACK ACK.
-                if state == 1 and pkt[IP].ack == seq_no + 1:
+                if state == 1 and pkt[TCP].ack == seq_no + 1:
                     # The connection is established
                     self.tcp_session.update(pkt[IP].src, 0, 0)
                     self.ip2hc.update(pkt[IP].src, hop_count)
@@ -136,6 +150,71 @@ class NetHCFController:
             else:
                 # Such as SYN
                 self.mismatch += 1
+
+    def process_packets_digest(self, digest_entry):
+        # Temporary method
+        # pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
+        # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
+        if DEBUG_OPTION:
+            print "Debug: " + str(digest_entry)
+        ip_src = digest_entry.ipv4_srcAddr
+        ip_dst = digest_entry.meta_dstAddr
+        ip_ttl = digest_entry.ipv4_ttl
+        ip_protocol = digest_entry.ipv4_protocol
+        tcp_seq = digest_entry.tcp_seqNo
+        tcp_ack = digest_entry.tcp_ackNo
+        tcp_flags = digest_entry.tcp_urg << 5 | digest_entry.tcp_ack << 4| \
+                    digest_entry.tcp_psh << 3 | digest_entry.tcp_rst << 2| \
+                    digest_entry.tcp_syn << 1 | digest_entry.tcp_fin
+        if ip_dst == CONTROLLER_IP:
+            # This is update request
+            if ip_protocol == TYPE_TCP:
+                # This is a write back request
+                # A SYN ACK ACK packet with replaced dst address
+                self.ip2hc.update(ip_src, self.compute_hc(ip_src))
+            elif ip_protocol == TYPE_NETHCF:
+                # This is a cache update request
+                self.process_update_request()
+        else:
+            # This is the header of traffic missing IP2HC in the cache
+            hc_in_ip2hc = self.ip2hc.read(ip_src)
+            hop_count, hop_count_possible = self.compute_hc(ip_ttl)
+            if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:
+                # Update IP2HC match statistics
+                if ip_protocol == TYPE_TCP and \
+                   tcp_flags == (FLAG_SYN | FLAG_ACK):
+                    self.tcp_session.update(ip_dst, 1, tcp_seq)
+                else:
+                    self.ip2hc.hit_in_controller(ip_src, 1)
+                if self.hcf_state == 1:
+                    sendp(pkt, iface=self.iface)
+            else:
+                # The HC may not be computed,
+                # or the HC should be updated,
+                # or this is an abnormal packet
+                if ip_protocol != TYPE_TCP:
+                    # However, we think it is abnormal traffic
+                    self.mismatch += 1
+                    return
+                if tcp_flags == (FLAG_SYN | FLAG_ACK):
+                    self.tcp_session.update(ip_dst, 1, tcp_seq)
+                elif tcp_flags == FLAG_ACK:
+                    state, seq_no = self.tcp_session.read(ip_src)
+                    # This is SYN ACK ACK.
+                    if state == 1 and tcp_ack == seq_no + 1:
+                        # The connection is established
+                        self.tcp_session.update(ip_src, 0, 0)
+                        self.ip2hc.update(ip_src, hop_count)
+                        # SYN, SYN ACK ACK, total two times for ip_addr(src)
+                        self.ip2hc.hit_in_controller(ip_src, 2)
+                        # Eliminate the effect of SYN
+                        self.mismatch -= 1
+                    else:
+                        # Abnormal packet
+                        self.mismatch += 1
+                else:
+                    # Such as SYN
+                    self.mismatch += 1
 
     def process_updates(self, period):
         while True:
@@ -192,5 +271,5 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("s1-eth3", [(11, 64)])
-    controller.run()
+    controller = NetHCFController("veth251", [(11, 64)])
+    # controller.run()

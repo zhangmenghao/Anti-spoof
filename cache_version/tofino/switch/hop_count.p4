@@ -46,6 +46,7 @@ header_type meta_t {
         update_ip2hc: 1;
         session_complete_flag: 1;
         tcp_synack: 1;
+        dstAddr : 32;
     }
 }
 
@@ -445,13 +446,30 @@ table l2_forward_table {
 }
 
 // Metadata used in clone function
-field_list meta_data_for_clone {
+/*field_list meta_data_for_clone {
     meta;
+}*/
+
+field_list digest_fields {
+    ipv4.srcAddr;
+    ipv4.ttl;
+    ipv4.protocol;
+    meta.dstAddr;
+    tcp.seqNo;
+    tcp.ackNo;
+    tcp.urg;
+    tcp.ack;
+    tcp.psh;
+    tcp.rst;
+    tcp.syn;
+    tcp.fin;
 }
 
 action packet_clone() {
     //modify_field(ig_intr_md_for_tm.ucast_egress_port, CONTROLLER_PORT);
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+    //clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+    modify_field(meta.dstAddr, ipv4.dstAddr);
+    generate_digest(FLOW_LRN_DIGEST_RCVR, digest_fields);
 }
 
 // When a packet is missed, clone it and send it to controller
@@ -468,15 +486,15 @@ table miss_packet_clone_table_copy {
     }
 }
 
-action modify_field_and_truncate() {
+/*action modify_field_and_truncate() {
     modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
     // truncate(PACKET_TRUNCATE_LENGTH);
-}
+}*/
 
 action nop() {
 }
 
-action only_truncate() {
+/*action only_truncate() {
     // truncate(PACKET_TRUNCATE_LENGTH);
 }
 
@@ -491,7 +509,7 @@ table modify_field_and_truncate_table {
         only_truncate;
         nop;
     }
-}
+}*/
 
 // The packets that missed ip_to_hc_table, deciding whether
 // to forward them by current switch state
@@ -508,8 +526,8 @@ table packet_miss_table {
 action session_complete_update() {
     //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
     //modify_field(ig_intr_md_for_tm.ucast_egress_port, CONTROLLER_PORT);
-    modify_field(meta.update_ip2hc, 1);
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+    modify_field(meta.dstAddr, CONTROLLER_IP_ADDRESS);
+    generate_digest(FLOW_LRN_DIGEST_RCVR, digest_fields);
 }
 
 // When a session is complete on the switch, the switch will send
@@ -638,7 +656,7 @@ control ingress {
 
 control egress {
     // Judging whether to send a header or a whole packet
-    if (ig_intr_md_for_tm.ucast_egress_port == CONTROLLER_PORT) {
+    /*if (ig_intr_md_for_tm.ucast_egress_port == CONTROLLER_PORT) {
         apply(modify_field_and_truncate_table);
-    }
+    }*/
 }

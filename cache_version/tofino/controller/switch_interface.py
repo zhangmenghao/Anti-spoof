@@ -500,8 +500,9 @@ class NetHCFSwitchTofino:
         result=getattr(self.dp_intfc,function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev"]
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in register_digest"
+        # Extracting info from the result is to be verified
 
     def notify_digest(self, msg_ptr):
         # if DEBUG_OPTION:
@@ -510,8 +511,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc,function_name)(
             self.dp_config["sess_hdl"], msg_ptr
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in notify_digest"
+        # Extracting info from the result is to be verified
 
 class NetHCFSwitchBMv2:
     def __init__(self, switch_config, target_switch, target_code, target_port):

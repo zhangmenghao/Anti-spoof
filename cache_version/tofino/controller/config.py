@@ -188,17 +188,17 @@ DP_CONFIG = {
         {
             "table": "hc_compute_table",
             "action": "compute_hc",
-            "match": [1, "range", [65, 128]], # [num, type, ...]
-            "parameter": [1, 128], # [Num, ...]
+            "match": [1, "range", [65, 127]], # [num, type, ...]
+            "parameter": [1, 127], # [Num, ...]
             "priority": 0
         },
-        {
-            "table": "hc_compute_table",
-            "action": "compute_hc",
-            "match": [1, "range", [129, 254]], # [num, type, ...]
-            "parameter": [1, 255], # [Num, ...]
-            "priority": 0
-        },
+        # {
+        #     "table": "hc_compute_table",
+        #     "action": "compute_hc",
+        #     "match": [1, "range", [129, 254]], # [num, type, ...]
+        #     "parameter": [1, 255], # [Num, ...]
+        #     "priority": 0
+        # },
         {
             "table": "get_ip_table",
             "action": "get_des_ip",

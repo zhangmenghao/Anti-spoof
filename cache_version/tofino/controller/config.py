@@ -182,14 +182,14 @@ DP_CONFIG = {
         {
             "table": "hc_compute_table",
             "action": "compute_hc",
-            "match": [1, "range", [60, 64]], # [num, type, ...]
+            "match": [1, "range", [60, 63]], # [num, type, ...]
             "parameter": [1, 64], # [Num, ...]
             "priority": 0
         },
         {
             "table": "hc_compute_table",
             "action": "compute_hc",
-            "match": [1, "range", [65, 127]], # [num, type, ...]
+            "match": [1, "range", [64, 127]], # [num, type, ...]
             "parameter": [1, 127], # [Num, ...]
             "priority": 0
         },

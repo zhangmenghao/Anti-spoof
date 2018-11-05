@@ -101,7 +101,7 @@ class NetHCFController:
         elif 60 <= current_ttl <= 63:
             hop_count = 64 - current_ttl
             hop_count_possible = hop_count
-        elif 63 <= current_ttl <= 127:
+        elif 64 <= current_ttl <= 127:
             hop_count = 128 - current_ttl
             hop_count_possible = hop_count
         else:
@@ -160,8 +160,6 @@ class NetHCFController:
         # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         digest_entry.ipv4_srcAddr = digest_entry.ipv4_srcAddr & 255
         digest_entry.meta_dstAddr = digest_entry.meta_dstAddr & 255
-        if DEBUG_OPTION:
-            print "Debug: " + str(digest_entry)
         ip_src = digest_entry.ipv4_srcAddr
         ip_dst = digest_entry.meta_dstAddr
         ip_ttl = digest_entry.ipv4_ttl
@@ -171,13 +169,14 @@ class NetHCFController:
         tcp_flags = digest_entry.tcp_urg << 5 | digest_entry.tcp_ack << 4| \
                     digest_entry.tcp_psh << 3 | digest_entry.tcp_rst << 2| \
                     digest_entry.tcp_syn << 1 | digest_entry.tcp_fin
-        if ip_dst == CONTROLLER_IP:
+        # if ip_dst == CONTROLLER_IP:
+        if ip_dst == 255:
             # This is update request
             if ip_protocol == TYPE_TCP:
                 # This is a write back request
                 # A SYN ACK ACK packet with replaced dst address
-                self.ip2hc.update(ip_src, self.compute_hc(ip_src))
-            elif ip_protocol == TYPE_NETHCF:
+                self.ip2hc.update(ip_src, self.compute_hc(ip_ttl)[0])
+            elif 256+ip_protocol == TYPE_NETHCF:
                 # This is a cache update request
                 self.process_update_request()
         else:
@@ -210,6 +209,10 @@ class NetHCFController:
                         # The connection is established
                         self.tcp_session.update(ip_src, 0, 0)
                         self.ip2hc.update(ip_src, hop_count)
+                        print(
+                            "Debug: connection established ip "
+                            "%d hop_count % d" % (ip_src, hop_count)
+                        )
                         # SYN, SYN ACK ACK, total two times for ip_addr(src)
                         self.ip2hc.hit_in_controller(ip_src, 2)
                         # Eliminate the effect of SYN
@@ -220,6 +223,8 @@ class NetHCFController:
                 else:
                     # Such as SYN
                     self.mismatch += 1
+        if DEBUG_OPTION:
+            print "Debug: " + str(digest_entry)
 
     def process_updates(self, period):
         while True:

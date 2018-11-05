@@ -121,7 +121,12 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             pass
 
     def runTest(self):
-        controller = NetHCFController("veth251", [(11, 64)])
+        controller = NetHCFController(
+            "veth251", [
+                (10, 64), (11, 64), (12, 64), (13, 64), (14, 64), 
+                (15, 64), (16, 64), (17, 64), (18, 64), (19, 64)
+            ]
+        )
 
         # TODO: self.client.*table*_set_default_action_*action*(self.sess_hdl, self.dev_tgt);
         controller.initialize()
@@ -137,7 +142,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             print "Cleaning up"
 
             # delete the programmed forward table entry
-            self.cleanup_table("forward")
+            # self.cleanup_table("forward")
             # delete the platform ports
             self.conn_mgr.client_cleanup(self.sess_hdl)
             for i in self.devPorts:

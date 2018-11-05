@@ -157,6 +157,8 @@ class NetHCFController:
         # Temporary method
         # pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
         # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
+        digest_entry.ipv4_srcAddr = digest_entry.ipv4_srcAddr & 255
+        digest_entry.meta_dstAddr = digest_entry.meta_dstAddr & 255
         if DEBUG_OPTION:
             print "Debug: " + str(digest_entry)
         ip_src = digest_entry.ipv4_srcAddr

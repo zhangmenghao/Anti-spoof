@@ -430,12 +430,12 @@ class NetHCFSwitchTofino:
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat(self, ip_addr, cache_idx):
-        # if type(ip_addr) != str:
-            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        if type(ip_addr) != str:
+            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # Temporary method...
+        ip_addr = ip_addr.replace('0', '10', 1)
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        # Temporary method...
-        # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
                 "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."
@@ -453,12 +453,12 @@ class NetHCFSwitchTofino:
 
     # Delete entry into IP2HC Match-Action-Table
     def delete_from_ip2hc_mat(self, ip_addr):
-        # if type(ip_addr) != str:
-            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        if type(ip_addr) == str:
-            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        if type(ip_addr) != str:
+            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
         # Temporary method...
         ip_addr = ip_addr.replace('0', '10', 1)
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         if DEBUG_OPTION:
             print(
                 "Debug: deleting IP2HC-MAT with ip %s ..." % ip_addr
@@ -635,12 +635,10 @@ class NetHCFSwitchBMv2:
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
-        # if type(ip_addr) != str:
-            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        if type(ip_addr) == str:
-            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        # # Temporary method...
-        # ip_addr = ip_addr.replace('0', '10', 1)
+        if type(ip_addr) != str:
+            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # Temporary method...
+        ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
                 "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."

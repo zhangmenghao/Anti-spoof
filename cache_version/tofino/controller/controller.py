@@ -52,7 +52,7 @@ class NetHCFController:
                     print digest.msg
                 for digest_entry in digest.msg:
                     self.process_packets_digest(digest_entry)
-                self.switch.notiry_digest(digest.msg_ptr)
+                self.switch.notify_digest(digest.msg_ptr)
             elif self.hcf_state == 1:
                 sniff(
                     iface=self.iface, count=FILTERING_BATCH,

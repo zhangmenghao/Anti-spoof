@@ -102,7 +102,7 @@ class NetHCFController:
             hop_count = 64 - current_ttl
             hop_count_possible = hop_count
         elif 64 <= current_ttl <= 127:
-            hop_count = 128 - current_ttl
+            hop_count = 127 - current_ttl
             hop_count_possible = hop_count
         else:
             hop_count = 255 - current_ttl
@@ -201,6 +201,7 @@ class NetHCFController:
                     self.mismatch += 1
                     return
                 if tcp_flags == (FLAG_SYN | FLAG_ACK):
+                    print "Debug: ip_dst %d tcp_seq %d" % (ip_dst, tcp_seq)
                     self.tcp_session.update(ip_dst, 1, tcp_seq)
                 elif tcp_flags == FLAG_ACK:
                     state, seq_no = self.tcp_session.read(ip_src)

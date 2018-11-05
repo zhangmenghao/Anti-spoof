@@ -164,7 +164,7 @@ class NetHCFController:
         ip_dst = digest_entry.meta_dstAddr
         ip_ttl = digest_entry.ipv4_ttl
         ip_protocol = digest_entry.ipv4_protocol
-        tcp_seq = digest_entry.tcp_seqNo
+        tcp_seq = self.switch.convert_to_unsigned(digest_entry.tcp_seqNo, 32)
         tcp_ack = digest_entry.tcp_ackNo
         tcp_flags = digest_entry.tcp_urg << 5 | digest_entry.tcp_ack << 4| \
                     digest_entry.tcp_psh << 3 | digest_entry.tcp_rst << 2| \
@@ -266,7 +266,6 @@ class NetHCFController:
             entry_handle = update_scheme[cache_idx][0]
             new_ip_addr = update_scheme[cache_idx][1]
             hc_value = update_scheme[cache_idx][2]
-            self.switch.delete_from_ip2hc_mat(entry_handle)
             self.switch.delete_from_ip2hc_mat(entry_handle)
             entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)
             if entry_handle != -1:

@@ -160,11 +160,17 @@ class NetHCFController:
         # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         digest_entry.ipv4_srcAddr = digest_entry.ipv4_srcAddr & 255
         digest_entry.meta_dstAddr = digest_entry.meta_dstAddr & 255
+        digest_entry.tcp_seqNo = self.switch.convert_to_unsigned(
+            digest_entry.tcp_seqNo, 32
+        )
+        digest_entry.tcp_ackNo = self.switch.convert_to_unsigned(
+            digest_entry.tcp_ackNo, 32
+        )
         ip_src = digest_entry.ipv4_srcAddr
         ip_dst = digest_entry.meta_dstAddr
         ip_ttl = digest_entry.ipv4_ttl
         ip_protocol = digest_entry.ipv4_protocol
-        tcp_seq = self.switch.convert_to_unsigned(digest_entry.tcp_seqNo, 32)
+        tcp_seq = digest_entry.tcp_seqNo
         tcp_ack = digest_entry.tcp_ackNo
         tcp_flags = digest_entry.tcp_urg << 5 | digest_entry.tcp_ack << 4| \
                     digest_entry.tcp_psh << 3 | digest_entry.tcp_rst << 2| \

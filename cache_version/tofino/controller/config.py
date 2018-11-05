@@ -25,8 +25,8 @@ EGRESS_PORT = 136
 IP_SPACE_SIZE = 2**8
 # IP_SPACE_SIZE = 2**25
 
-LEARN_TO_FILTER_THR = 20
-FILTER_TO_LEARN_THR = 15
+LEARN_TO_FILTER_THR = 100
+FILTER_TO_LEARN_THR = 50
 
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_SWITCH = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"

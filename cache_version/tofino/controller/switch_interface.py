@@ -483,8 +483,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], match_spec
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in delete_from_ip2hc_mat"
+        # Extracting info from the result is to be verified
 
     def get_digest(self):
         # if DEBUG_OPTION:

@@ -55,8 +55,6 @@ class NetHCFSwitchTofino:
             if hasattr(
                 self.dp_intfc, "%s_set_default_action_%s" % (mat_table,action)
             ):
-                # if DEBUG_OPTION:
-                    # print
                 if item["parameter"][0] == 0:
                     result = getattr(
                         self.dp_intfc,
@@ -82,8 +80,14 @@ class NetHCFSwitchTofino:
                             self.dp_config["sess_hdl"],
                             self.dp_config["dev_tgt"], action_spec
                         )
-                print result
-                # Extracting info from the result is to be completed
+                if DEBUG_OPTION:
+                    print(
+                        "Debug: set default action %s for "
+                        "%s success" % (action, mat_table)
+                    )
+                    print(
+                        "Debug: now %d entries exist in %s" % (result,mat_table)
+                    )
             else:
                 print(
                     "Error: Can't find set_default function for %s "
@@ -172,8 +176,12 @@ class NetHCFSwitchTofino:
                                     self.dp_config["dev_tgt"],
                                     match_spec, action_spec
                                 )
-                    print result
-                    # Extracting info from the result is to be completed
+                    if DEBUG_OPTION:
+                        print("Debug: table add for %s success" % mat_table)
+                        print(
+                            "Debug: now %d entries exist in "
+                            "%s" % (result, mat_table)
+                        )
                 else:
                     print "%s_table_add_with_%s" % (mat_table, action)
                     print(
@@ -325,8 +333,8 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
-        return result
-        # Extracting info from the result is to be completed
+        return sum(result)
+        # Extracting info from the result is to be verified
 
     def reset_miss_counter(self):
         if DEBUG_OPTION:
@@ -335,8 +343,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in reset_miss_counter"
+        # Extracting info from the result is to be verified
 
     def read_mismatch_counter(self):
         if DEBUG_OPTION:
@@ -346,8 +355,8 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
-        return result
-        # Extracting info from the result is to be completed
+        return sum(result)
+        # Extracting info from the result is to be verified
 
     def reset_mismatch_counter(self):
         if DEBUG_OPTION:
@@ -356,8 +365,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in reset_mismatch_counter"
+        # Extracting info from the result is to be verified
 
     def read_hits_counter(self, cache_idx):
         if DEBUG_OPTION:
@@ -370,8 +380,8 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             cache_idx, self.dp_config["hw_sync_flag"]
         )
-        return result
-        # Extracting info from the result is to be completed
+        return sum(result)
+        # Extracting info from the result is to be verified
 
     def reset_hits_counter(self):
         if DEBUG_OPTION:
@@ -380,8 +390,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"]
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in reset_hits_counter"
+        # Extracting info from the result is to be verified
 
     def update_hc_value(self, cache_idx, hc_value):
         if DEBUG_OPTION:
@@ -394,8 +405,8 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             cache_idx, hc_value
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in update_hc_value"
 
     def read_hcf_state(self):
         if DEBUG_OPTION:
@@ -405,8 +416,8 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             0, self.dp_config["hw_sync_flag"]
         )
-        return result
-        # Extracting info from the result is to be completed
+        return result[1]
+        # Extracting info from the result is to be verified
 
     def switch_to_learning_state(self):
         if DEBUG_OPTION:
@@ -415,8 +426,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 0
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in switch_to_learning_state"
+        # Extracting info from the result is to be verified
 
     def switch_to_filtering_state(self):
         if DEBUG_OPTION:
@@ -425,8 +437,9 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc, function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"], 0, 1
         )
-        print result
-        # Extracting info from the result is to be completed
+        if result is not None:
+            print "Error: maybe wrong in switch_to_filtering_state"
+        # Extracting info from the result is to be verified
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat(self, ip_addr, cache_idx):
@@ -448,7 +461,9 @@ class NetHCFSwitchTofino:
             self.dp_config["sess_hdl"], self.dp_config["dev_tgt"],
             match_spec, action_spec
         )
-        print result
+        if DEBUG_OPTION:
+            print("Debug: table add for IP2HC-MAT success")
+            print("Debug: now %d entries exist in IP2HC-MAT" % result)
         # Extracting info(entry_handle) from the result is to be completed
 
     # Delete entry into IP2HC Match-Action-Table
@@ -477,7 +492,6 @@ class NetHCFSwitchTofino:
         function_name = self.dp_intfc_func["digest_fields"]["get"]
         result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
         return result
-        # Extracting info from the result is to be completed
 
     def register_digest(self):
         # if DEBUG_OPTION:
@@ -486,7 +500,7 @@ class NetHCFSwitchTofino:
         result=getattr(self.dp_intfc,function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev"]
         )
-        return result
+        print result
         # Extracting info from the result is to be completed
 
     def notify_digest(self, msg_ptr):
@@ -496,7 +510,7 @@ class NetHCFSwitchTofino:
         result = getattr(self.dp_intfc,function_name)(
             self.dp_config["sess_hdl"], msg_ptr
         )
-        return result
+        print result
         # Extracting info from the result is to be completed
 
 class NetHCFSwitchBMv2:

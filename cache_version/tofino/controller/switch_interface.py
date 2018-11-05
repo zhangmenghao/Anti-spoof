@@ -515,7 +515,7 @@ class NetHCFSwitchTofino:
             print "Error: maybe wrong in notify_digest"
         # Extracting info from the result is to be verified
 
-    def convert_to_unsigned(integer, width):
+    def convert_to_unsigned(self, integer, width):
         return integer & ((1 << width) - 1)
 
 class NetHCFSwitchBMv2:

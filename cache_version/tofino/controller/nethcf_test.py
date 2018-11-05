@@ -81,10 +81,12 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         # initialize the connection
         pd_base_tests.ThriftInterfaceDataPlane.setUp(self)
         self.sess_hdl = self.conn_mgr.client_init()
+        self.dev = 0
         self.dev_tgt = DevTarget_t(0, hex_to_i16(0xFFFF))
         self.devPorts = []
         DP_CONFIG["dp_interface"] = self.client
         DP_CONFIG["sess_hdl"] = self.sess_hdl
+        DP_CONFIG["dev"] = self.dev
         DP_CONFIG["dev_tgt"] = self.dev_tgt
         DP_CONFIG["hw_sync_flag"]= nethcf_register_flags_t(read_hw_sync = True)
 

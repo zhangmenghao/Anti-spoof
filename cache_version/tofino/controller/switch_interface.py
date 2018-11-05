@@ -181,6 +181,8 @@ class NetHCFSwitchTofino:
                         "in the data plane interface!" % mat_table
                     )
                     print self.error_hint_str
+        # Register digest
+        self.register_digest()
 
     def generate_dp_intfc_functions(self):
         # For register_array, key is register name in controller
@@ -253,7 +255,7 @@ class NetHCFSwitchTofino:
                 "IP2HC-MAT in the data plane interface!"
             )
             print self.error_hint_str
-        # get digest get
+        # digest get and register
         self.dp_intfc_func["digest_fields"] = {}
         if hasattr(self.dp_intfc, "%s_get_digest" % self.digest_fields):
             self.dp_intfc_func["digest_fields"]["get"] = \
@@ -261,6 +263,15 @@ class NetHCFSwitchTofino:
         else:
             print(
                 "Error: Can't find get function for "
+                "digest_fields in the data plane interface!"
+            )
+            print self.error_hint_str
+        if hasattr(self.dp_intfc, "%s_register" % self.digest_fields):
+            self.dp_intfc_func["digest_fields"]["register"] = \
+                    "%s_register" % self.digest_fields
+        else:
+            print(
+                "Error: Can't find register function for "
                 "digest_fields in the data plane interface!"
             )
             print self.error_hint_str
@@ -415,7 +426,7 @@ class NetHCFSwitchTofino:
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
                 "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."
@@ -452,10 +463,20 @@ class NetHCFSwitchTofino:
         # Extracting info from the result is to be completed
 
     def get_digest(self):
-        if DEBUG_OPTION:
-            print("Debug: getting diget ...")
+        # if DEBUG_OPTION:
+        #     print("Debug: getting diget ...")
         function_name = self.dp_intfc_func["digest_fields"]["get"]
         result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
+        return result
+        # Extracting info from the result is to be completed
+
+    def register_digest(self):
+        # if DEBUG_OPTION:
+        #     print("Debug: getting diget ...")
+        function_name = self.dp_intfc_func["digest_fields"]["register"]
+        result=getattr(self.dp_intfc,function_name)(
+            self.dp_config["sess_hdl"], self.dp_config["dev"]
+        )
         return result
         # Extracting info from the result is to be completed
 

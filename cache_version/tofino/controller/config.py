@@ -58,6 +58,7 @@ DP_CONFIG = {
     "dp_interface": None,
     "sess_hdl": None,
     "dev_tgt": None,
+    "dev": None,
     "hw_sync_flag": None,
     "set_default": {
         "hcf_check_table": {
@@ -240,6 +241,12 @@ DP_CONFIG = {
             "action": "reverse_calculate_session_map_index",
             "match": [1, "exact", EGRESS_PORT], # egress_port
             "parameter": [0], # [Num, ...]
+        },
+        {
+            "table": "l2_forward_table",
+            "action": "forward_l2",
+            "match": [2, "exact", 0, "exact", EGRESS_PORT], # ingress_port
+            "parameter": [1, INGRESS_PORT], # egress_ports
         },
         {
             "table": "l2_forward_table",

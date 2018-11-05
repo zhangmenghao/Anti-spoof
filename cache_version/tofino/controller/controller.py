@@ -48,8 +48,8 @@ class NetHCFController:
                 digest = self.switch.get_digest()
                 if len(digest.msg) == 0:
                     continue
-                else:
-                    print digest.msg
+                # else:
+                    # print digest.msg
                 for digest_entry in digest.msg:
                     self.process_packets_digest(digest_entry)
                 self.switch.notify_digest(digest.msg_ptr)

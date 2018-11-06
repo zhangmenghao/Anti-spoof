@@ -299,7 +299,7 @@ class IP2HC:
         return update_scheme
 
     def reset_last_matched(self):
-        self.last_matched = array('B', [0 for i in range(count)])
+        self.last_matched = array('B', [0 for i in range(self.count)])
 
     def update_entry_handle_in_cache(self, cache_idx, entry_handle):
         self.cache[cache_idx][3] = entry_handle

@@ -476,10 +476,6 @@ class NetHCFSwitchTofino:
         #     print("Debug: getting diget ...")
         function_name = self.dp_intfc_func["digest_fields"]["get"]
         result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
-        function_name = self.dp_intfc_func["digest_fields"]["notify"]
-        getattr(self.dp_intfc,function_name)(
-            self.dp_config["sess_hdl"], result.msg_ptr
-        )
         return result
         # Extracting info from the result is to be completed
 
@@ -489,6 +485,16 @@ class NetHCFSwitchTofino:
         function_name = self.dp_intfc_func["digest_fields"]["register"]
         result=getattr(self.dp_intfc,function_name)(
             self.dp_config["sess_hdl"], self.dp_config["dev"]
+        )
+        return result
+        # Extracting info from the result is to be completed
+
+    def notify_digest(self, msg_ptr):
+        # if DEBUG_OPTION:
+        #     print("Debug: getting diget ...")
+        function_name = self.dp_intfc_func["digest_fields"]["notify"]
+        result = getattr(self.dp_intfc,function_name)(
+            self.dp_config["sess_hdl"], msg_ptr
         )
         return result
         # Extracting info from the result is to be completed

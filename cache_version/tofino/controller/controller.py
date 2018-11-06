@@ -260,7 +260,7 @@ class NetHCFController:
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
 
     def load_cache_into_switch(self):
-        for idx in range(CACHE_SIZE):
+        for idx in range(self.ip2hc.get_cached_size):
             ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
             entry_handle = self.switch.add_into_ip2hc_mat(ip_addr, idx)
             if entry_handle != -1:

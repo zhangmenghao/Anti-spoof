@@ -221,6 +221,9 @@ class IP2HC:
                 self.total_matched[ip_addr], self.last_matched[ip_addr]
             )
 
+    def get_cached_size(self, cache_idx):
+        return len(self.cache)
+
     def get_cached_info(self, cache_idx):
         ip_addr = self.cache[cache_idx][1]
         # print len(self.hc_value), ip_addr

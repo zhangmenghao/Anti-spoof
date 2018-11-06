@@ -35,6 +35,10 @@ TARGET_PORT = 22223
 
 FILTERING_BATCH = 10
 
+DEVIDE_BITS = 8
+
+DEFAULT_HC = 0
+
 NETHCF_SWITCH_CONFIG = {
     # project name in p4
     "project_name": "nethcf",

@@ -10,6 +10,7 @@ from config import *
 
 
 class ImpactHeap:
+    # item: [impact_factor, ip_addr]
     def __init__(self, impact_factor_function):
         self._heap = []
         self.impact_factor_function = impact_factor_function
@@ -38,6 +39,7 @@ class ImpactHeap:
 
 
 class CacheHeap:
+    # item: [impact_factor, ip_addr, idx, entry_handle]
     def __init__(self, impact_factor_function):
         self._heap = []
         self.impact_factor_function = impact_factor_function
@@ -66,21 +68,33 @@ class CacheHeap:
 
 class IP2HC:
     def __init__(self, impact_factor_function, default_hc_list):
+        # Count of the ip-hc pairs in IP2HC table
+        self.count = 0
+        # Length of bits to devide ip address pertime
+        self.devide_bits = DEVIDE_BITS
+        if 32 % self.devide_bits != 0:
+            print(
+                "Warning: Please check DEVIDE_BITS in "
+                "config.py and select from [2, 4, 8, 16]"
+            )
+        # A tree-like structure to map ip address to index
+        self.ip2idx = {}
         # Init the Impact Heap of the IP2HC
         self.impact_heap = ImpactHeap(impact_factor_function)
         # Init the Cache Heap of the switch
         self.cache_heap = CacheHeap(impact_factor_function)
         # Init each column of the IP2HC table
-        self.hc_value = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        self.hc_value = array('B', [])
         print("HC Value List Size: %d" % sys.getsizeof(self.hc_value))
-        self.total_matched = array('H', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        self.total_matched = array('H', [])
         print("Total Matched List Size: %d" % sys.getsizeof(self.total_matched))
-        self.last_matched = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        self.last_matched = array('B', [])
         print("Last Matched List Size: %d" % sys.getsizeof(self.last_matched))
-        self.heap_pointer = [
-            self.impact_heap.push(ip_addr, 0, 0) 
-            for ip_addr in range(IP_SPACE_SIZE)
-        ]
+        # self.heap_pointer = [
+            # self.impact_heap.push(ip_addr, 0, 0) 
+            # for ip_addr in range(IP_SPACE_SIZE)
+        # ]
+        self.heap_pointer = []
         print("Heap Pointer List Size: %d" % sys.getsizeof(self.heap_pointer))
         self.cache = [
             self.cache_heap.push(idx, idx, idx, 0, 0) 
@@ -89,17 +103,60 @@ class IP2HC:
         print("Cache List Size: %d" % sys.getsizeof(self.cache))
         # Load the default_hc_list into IP2HC
         for ip_hc_pair in default_hc_list:
-            self.hc_value[ip_hc_pair[0]] = ip_hc_pair[1]
+            self.add_into_ip2hc(ip_hc_pair[0], ip_hc_pair[1])
         # Load the default_hc_list into cache
         for idx in range(len(default_hc_list)):
             ip_addr = default_hc_list[idx][0]
             self.cache[idx][1] = ip_addr
             self.heap_pointer[ip_addr][0] = 0
 
+    def add_into_ip2hc(self, ip_addr, hc_value):
+        mask = (1 << self.devide_bits) - 1
+        local_ip2idx = self.ip2idx
+        devide_steps = int(32 / self.devide_bits)
+        for i in range(devide_steps):
+            ip_addr_part = (ip_addr >> (32 - 8 * (i + 1))) & mask
+            if i == devide_steps - 1:
+                # Last level
+                if ip_addr_part in local_ip2idx.keys():
+                    self.hc_value[local_ip2idx[ip_addr_part]] = hc_value
+                else:
+                    local_ip2idx[ip_addr_part] = self.count
+                    self.count += 1
+                    self.hc_value.append(hc_value)
+                    self.last_matched.append(0)
+                    self.total_matched.append(0)
+                    self.heap_pointer.append(
+                        self.impact_heap.push(ip_addr, 0, 0)
+                    )
+            else:
+                if ip_addr_part in local_ip2idx.keys():
+                    local_ip2idx = local_ip2idx[ip_addr_part]
+                else:
+                    local_ip2idx[ip_addr_part] = {}
+                    local_ip2idx = local_ip2idx[ip_addr_part]
+
+
     def read(self, ip_addr):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        return self.hc_value[ip_addr]
+        mask = (1 << self.devide_bits) - 1
+        local_ip2idx = self.ip2idx
+        devide_steps = int(32 / self.devide_bits)
+        for i in range(devide_steps):
+            ip_addr_part = (ip_addr >> (32 - 8 * (i + 1))) & mask
+            if i == devide_steps - 1:
+                # Last level
+                if ip_addr_part in local_ip2idx.keys():
+                    return self.hc_value[local_ip2idx[ip_addr_part]]
+                else:
+                    return DEFAULT_HC
+            else:
+                if ip_addr_part in local_ip2idx.keys():
+                    local_ip2idx = local_ip2idx[ip_addr_part]
+                else:
+                    return DEFAULT_HC
+        return DEFAULT_HC
 
     def hit_in_controller(self, ip_addr, times):
         if type(ip_addr) == str:

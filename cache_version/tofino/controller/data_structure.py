@@ -105,10 +105,15 @@ class IP2HC:
         for ip_hc_pair in default_hc_list:
             self.add_into_ip2hc(ip_hc_pair[0], ip_hc_pair[1])
         # Load the default_hc_list into cache
-        for idx in range(len(default_hc_list)):
-            ip_addr = default_hc_list[idx][0]
-            self.cache[idx][1] = ip_addr
-            self.heap_pointer[ip_addr][0] = 0
+        for cache_idx in range(len(default_hc_list)):
+            ip_addr = default_hc_list[cache_idx][0]
+            ip2hc_idx = self.get_idx_for_ip(ip_addr)
+            if ip2hc_idx == -1:
+                self.cache[cache_idx][1] = 0
+                self.heap_pointer[ip2hc_idx][0] = 0
+            else:
+                self.cache[cache_idx][1] = ip_addr
+                self.heap_pointer[ip_addr][0] = 0
 
     def add_into_ip2hc(self, ip_addr, hc_value):
         mask = (1 << self.devide_bits) - 1

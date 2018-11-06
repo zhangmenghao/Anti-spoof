@@ -255,7 +255,7 @@ class NetHCFSwitchTofino:
                 "IP2HC-MAT in the data plane interface!"
             )
             print self.error_hint_str
-        # digest get and register
+        # digest get, register, notify
         self.dp_intfc_func["digest_fields"] = {}
         if hasattr(self.dp_intfc, "%s_get_digest" % self.digest_fields):
             self.dp_intfc_func["digest_fields"]["get"] = \
@@ -272,6 +272,15 @@ class NetHCFSwitchTofino:
         else:
             print(
                 "Error: Can't find register function for "
+                "digest_fields in the data plane interface!"
+            )
+            print self.error_hint_str
+        if hasattr(self.dp_intfc, "%s_digest_notify_ack" % self.digest_fields):
+            self.dp_intfc_func["digest_fields"]["notify"] = \
+                    "%s_digest_notify_ack" % self.digest_fields
+        else:
+            print(
+                "Error: Can't find notify function for "
                 "digest_fields in the data plane interface!"
             )
             print self.error_hint_str
@@ -467,6 +476,10 @@ class NetHCFSwitchTofino:
         #     print("Debug: getting diget ...")
         function_name = self.dp_intfc_func["digest_fields"]["get"]
         result=getattr(self.dp_intfc,function_name)(self.dp_config["sess_hdl"])
+        function_name = self.dp_intfc_func["digest_fields"]["notify"]
+        getattr(self.dp_intfc,function_name)(
+            self.dp_config["sess_hdl"], result.msg_ptr
+        )
         return result
         # Extracting info from the result is to be completed
 

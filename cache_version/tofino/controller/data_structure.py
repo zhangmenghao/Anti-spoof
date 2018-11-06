@@ -96,24 +96,31 @@ class IP2HC:
         # ]
         self.heap_pointer = []
         print("Heap Pointer List Size: %d" % sys.getsizeof(self.heap_pointer))
-        self.cache = [
-            self.cache_heap.push(idx, idx, idx, 0, 0) 
-            for idx in range(CACHE_SIZE)
-        ]
+        self.cache = []
         print("Cache List Size: %d" % sys.getsizeof(self.cache))
-        # Load the default_hc_list into IP2HC
+        # Load the default_hc_list into IP2HC and cache
+        if len(default_hc_list) > CACHE_SIZE:
+            print "Warning: the cache cannot hold the whole default_hc_list"
         for ip_hc_pair in default_hc_list:
-            self.add_into_ip2hc(ip_hc_pair[0], ip_hc_pair[1])
+            ip_addr = ip_hc_pair[0]
+            hc_value = ip_hc_pair[1]
+            cache_idx = len(self.cache)
+            # Load into IP2HC
+            ip2hc_idx = self.add_into_ip2hc(ip_addr, hc_value)
+            # Load into cache
+            self.cache.append(
+                self.cache_heap.push(ip_addr, cache_idx, cache_idx, 0, 0)
+            )
+            self.heap_pointer[ip2hc_idx][0] = 0
         # Load the default_hc_list into cache
         for cache_idx in range(len(default_hc_list)):
             ip_addr = default_hc_list[cache_idx][0]
             ip2hc_idx = self.get_idx_for_ip(ip_addr)
             if ip2hc_idx == -1:
-                self.cache[cache_idx][1] = 0
-                self.heap_pointer[ip2hc_idx][0] = 0
+                self.cache[cache_idx][1] = -1
             else:
                 self.cache[cache_idx][1] = ip_addr
-                self.heap_pointer[ip_addr][0] = 0
+                self.heap_pointer[ip2hc_idx][0] = 0
 
     def add_into_ip2hc(self, ip_addr, hc_value):
         mask = (1 << self.devide_bits) - 1
@@ -140,6 +147,8 @@ class IP2HC:
                 else:
                     local_ip2idx[ip_addr_part] = {}
                     local_ip2idx = local_ip2idx[ip_addr_part]
+        # Return the ip2hc_idx
+        return self.count - 1
 
     def get_idx_for_ip(self, ip_addr):
         if type(ip_addr) == str:
@@ -228,44 +237,65 @@ class IP2HC:
         cache_list_to_replace = []
         controller_list_to_replace = []
         update_scheme = {}
-        for i in range(count):
-            # Select count item to be replaced
-            cache_list_to_replace.append(self.cache_heap.pop())
-            controller_list_to_replace.append(self.impact_heap.pop())
-        for i in range(count):
-            cache_item = cache_list_to_replace[i]
-            controller_item = controller_list_to_replace[i]
-            old_ip_addr = cache_item[1]
-            cache_idx = cache_item[2]
-            entry_handle = cache_item[3]
-            new_ip_addr = controller_item[1]
-            new_ip_ip2hc_idx = self.get_idx_for_ip(new_ip_addr)
-            old_ip_ip2hc_idx = self.get_idx_for_ip(old_ip_addr)
-            if new_ip_ip2hc_idx == -1 or old_ip_ip2hc_idx == -1:
-                print(
-                    "Error: can't find info for this ip "
-                    "%d, %d in IP2HC" % (new_ip_addr, old_ip_addr)
+        load_directly = CACHE_SIZE - len(self.cache)
+        # Select count item to be replaced
+        if count <= load_directly:
+            for i in range(count):
+                controller_item = self.impact_heap.pop()
+                ip_addr = controller_item[1]
+                ip2hc_idx = self.get_idx_for_ip(ip_addr)
+                cache_idx = len(self.cache)
+                self.cache.append(
+                    self.cache_heap.push(
+                        ip_addr, cache_idx, cache_idx, 
+                        self.total_matched[ip2hc_idx], 
+                        self.last_matched[ip2hc_idx]
+                    )
                 )
-                return {}
-            # Push new item from controller into cache
-            self.cache[cache_idx] = self.cache_heap.push(
-                new_ip_addr, cache_idx, entry_handle, 
-                self.total_matched[new_ip_ip2hc_idx], 
-                self.last_matched[new_ip_ip2hc_idx]
-            )
-            # Set the impact factor of thoes pushed into cache to 0
-            controller_item[0] = 0
-            self.impact_heap.push_direct(controller_item)
-            # update_scheme[cache_idx] = \
+                controller_item[0] = 0
+                self.impact_heap.push_direct(controller_item)
+        else:
+            for i in range(load_directly):
+                controller_item = self.impact_heap.pop()
+                controller_item[0] = 0
+                self.impact_heap.push_direct(controller_item)
+            for i in range(count - load_directly):
+                controller_list_to_replace.append(self.impact_heap.pop())
+                cache_list_to_replace.append(self.cache_heap.pop())
+            for i in range(count):
+                cache_item = cache_list_to_replace[i]
+                controller_item = controller_list_to_replace[i]
+                old_ip_addr = cache_item[1]
+                cache_idx = cache_item[2]
+                entry_handle = cache_item[3]
+                old_ip_ip2hc_idx = self.get_idx_for_ip(old_ip_addr)
+                new_ip_addr = controller_item[1]
+                new_ip_ip2hc_idx = self.get_idx_for_ip(new_ip_addr)
+                if new_ip_ip2hc_idx == -1 or old_ip_ip2hc_idx == -1:
+                    print(
+                        "Error: can't find info for this ip "
+                        "%d, %d in IP2HC" % (new_ip_addr, old_ip_addr)
+                    )
+                    return {}
+                # Push new item from controller into cache
+                self.cache[cache_idx] = self.cache_heap.push(
+                    new_ip_addr, cache_idx, entry_handle, 
+                    self.total_matched[new_ip_ip2hc_idx], 
+                    self.last_matched[new_ip_ip2hc_idx]
+                )
+                # Set the impact factor of thoes pushed into cache to 0
+                controller_item[0] = 0
+                self.impact_heap.push_direct(controller_item)
+                # update_scheme[cache_idx] = \
                     # (entry_handle, new_ip_addr, self.hc_value[new_ip_addr])
-            update_scheme[cache_idx] = \
+                update_scheme[cache_idx] = \
                     (old_ip_addr, new_ip_addr, self.hc_value[new_ip_ip2hc_idx])
-            # Set the impact factor of those from cache to normal
-            self.impact_heap.update(
-                self.heap_pointer[old_ip_ip2hc_idx],
-                self.total_matched[old_ip_ip2hc_idx], 
-                self.last_matched[old_ip_ip2hc_idx]
-            )
+                # Set the impact factor of those from cache to normal
+                self.impact_heap.update(
+                    self.heap_pointer[old_ip_ip2hc_idx],
+                    self.total_matched[old_ip_ip2hc_idx], 
+                    self.last_matched[old_ip_ip2hc_idx]
+                )
         return update_scheme
 
     def reset_last_matched(self):

@@ -136,56 +136,86 @@ class IP2HC:
                     local_ip2idx[ip_addr_part] = {}
                     local_ip2idx = local_ip2idx[ip_addr_part]
 
-
-    def read(self, ip_addr):
+    def get_idx_for_ip(self, ip_addr):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         mask = (1 << self.devide_bits) - 1
         local_ip2idx = self.ip2idx
         devide_steps = int(32 / self.devide_bits)
         for i in range(devide_steps):
-            ip_addr_part = (ip_addr >> (32 - 8 * (i + 1))) & mask
+            ip_addr_part = (ip_addr >> (32 - self.devide_bits * (i+1))) & mask
             if i == devide_steps - 1:
                 # Last level
                 if ip_addr_part in local_ip2idx.keys():
-                    return self.hc_value[local_ip2idx[ip_addr_part]]
+                    return local_ip2idx[ip_addr_part]
                 else:
-                    return DEFAULT_HC
+                    return -1
             else:
                 if ip_addr_part in local_ip2idx.keys():
                     local_ip2idx = local_ip2idx[ip_addr_part]
                 else:
-                    return DEFAULT_HC
-        return DEFAULT_HC
+                    return -1
+        return -1
+
+    def read(self, ip_addr):
+        if type(ip_addr) == str:
+            ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        ip2hc_idx = self.get_idx_for_ip(ip_addr)
+        if ip2hc_idx == -1:
+            return DEFAULT_HC
+        else:
+            return self.hc_value[ip2hc_idx]
 
     def hit_in_controller(self, ip_addr, times):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        self.last_matched[ip_addr] += times
-        self.total_matched[ip_addr] += times
-        self.impact_heap.update(
-            self.heap_pointer[ip_addr], 
-            self.total_matched[ip_addr], self.last_matched[ip_addr]
-        )
+        ip2hc_idx = self.get_idx_for_ip(ip_addr)
+        if ip2hc_idx == -1:
+            print "Error: can't find info for this ip %d in IP2HC" % ip_addr
+            return -1
+        else:
+            self.last_matched[ip2hc_idx] += times
+            self.total_matched[ip2hc_idx] += times
+            self.impact_heap.update(
+                self.heap_pointer[ip2hc_idx], 
+                self.total_matched[ip2hc_idx], self.last_matched[ip2hc_idx]
+            )
+            return 0
 
     def update(self, ip_addr, hc_value):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        self.hc_value[ip_addr] = hc_value
+        ip2hc_idx = self.get_idx_for_ip(ip_addr)
+        if ip2hc_idx == -1:
+            return -1
+        else:
+            self.hc_value[ip2hc_idx] = hc_value
+            return 0
+
     
-    def sync_match_times(self, idx, times):
-        ip_addr = self.cache[idx][1]
-        self.last_matched[ip_addr] += times
-        self.total_matched[ip_addr] += times
-        self.cache_heap.update(
-            self.cache[idx], 
-            self.total_matched[ip_addr], self.last_matched[ip_addr]
-        )
+    def sync_match_times(self, cache_idx, times):
+        ip_addr = self.cache[cache_idx][1]
+        ip2hc_idx = self.get_idx_for_ip(ip_addr)
+        if ip2hc_idx == -1:
+            print "Error: can't find info for this ip %d in IP2HC" % ip_addr
+            return -1
+        else:
+            self.last_matched[ip2hc_idx] += times
+            self.total_matched[ip2hc_idx] += times
+            self.cache_heap.update(
+                self.cache[cache_idx], 
+                self.total_matched[ip_addr], self.last_matched[ip_addr]
+            )
 
     def get_cached_info(self, cache_idx):
         ip_addr = self.cache[cache_idx][1]
         # print len(self.hc_value), ip_addr
-        hc_value = self.hc_value[ip_addr]
+        ip2hc_idx = self.get_idx_for_ip(ip_addr)
+        if ip2hc_idx == -1:
+            print "Error: can't find info for this ip %d in IP2HC" % ip_addr
+            return -1, DEFAULT_HC
+        else:
+            hc_value = self.hc_value[ip2hc_idx]
         return ip_addr, hc_value
 
     def update_cache(self, miss_counter):
@@ -204,10 +234,19 @@ class IP2HC:
             cache_idx = cache_item[2]
             entry_handle = cache_item[3]
             new_ip_addr = controller_item[1]
+            new_ip_ip2hc_idx = self.get_idx_for_ip(new_ip_addr)
+            old_ip_ip2hc_idx = self.get_idx_for_ip(old_ip_addr)
+            if new_ip_ip2hc_idx == -1 or old_ip_ip2hc_idx == -1:
+                print(
+                    "Error: can't find info for this ip "
+                    "%d, %d in IP2HC" % (new_ip_addr, old_ip_addr)
+                )
+                return {}
             # Push new item from controller into cache
             self.cache[cache_idx] = self.cache_heap.push(
                 new_ip_addr, cache_idx, entry_handle, 
-                self.total_matched[new_ip_addr], self.last_matched[new_ip_addr]
+                self.total_matched[new_ip_ip2hc_idx], 
+                self.last_matched[new_ip_ip2hc_idx]
             )
             # Set the impact factor of thoes pushed into cache to 0
             controller_item[0] = 0
@@ -215,16 +254,17 @@ class IP2HC:
             # update_scheme[cache_idx] = \
                     # (entry_handle, new_ip_addr, self.hc_value[new_ip_addr])
             update_scheme[cache_idx] = \
-                    (old_ip_addr, new_ip_addr, self.hc_value[new_ip_addr])
+                    (old_ip_addr, new_ip_addr, self.hc_value[new_ip_ip2hc_idx])
             # Set the impact factor of those from cache to normal
             self.impact_heap.update(
-                self.heap_pointer[old_ip_addr],
-                self.total_matched[old_ip_addr], self.last_matched[old_ip_addr]
+                self.heap_pointer[old_ip_ip2hc_idx],
+                self.total_matched[old_ip_ip2hc_idx], 
+                self.last_matched[old_ip_ip2hc_idx]
             )
         return update_scheme
 
     def reset_last_matched(self):
-        self.last_matched = array('B', [0 for ip_addr in range(IP_SPACE_SIZE)])
+        self.last_matched = array('B', [0 for i in range(count)])
 
     def update_entry_handle_in_cache(self, cache_idx, entry_handle):
         self.cache[cache_idx][3] = entry_handle

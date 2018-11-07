@@ -317,6 +317,8 @@ class TCP_Session:
     def read(self, ip_addr):
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
+        # Temporary method
+        ip_addr = ip_addr & (IP_SPACE_SIZE - 1)
         return self.state[ip_addr], self.seq_number[ip_addr]
 
     def update(self, ip_addr, state, seq_number):
@@ -324,6 +326,8 @@ class TCP_Session:
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         # print "\n\nDebug: ip %d\n\n" % ip_addr
+        # Temporary method
+        ip_addr = ip_addr & (IP_SPACE_SIZE - 1)
         self.state[ip_addr] = state
         self.seq_number[ip_addr] = seq_number
 

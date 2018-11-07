@@ -261,8 +261,8 @@ class IP2HC:
                 )
                 controller_item[0] = 0
                 self.impact_heap.push_direct(controller_item)
-        else:
-            for i in range(load_directly):
+                update_scheme[cache_idx] = \
+                        (0, ip_addr, self.hc_value[ip_ip2hc_idx])
                 controller_item = self.impact_heap.pop()
                 controller_item[0] = 0
                 self.impact_heap.push_direct(controller_item)

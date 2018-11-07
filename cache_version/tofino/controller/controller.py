@@ -256,7 +256,7 @@ class NetHCFController:
     def pull_switch_counters(self):
         self.miss = self.switch.read_miss_counter()
         self.mismatch += self.switch.read_mismatch_counter()
-        for idx in range(CACHE_SIZE):
+        for idx in range(self.get_cached_size()):
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
 
     def load_cache_into_switch(self):

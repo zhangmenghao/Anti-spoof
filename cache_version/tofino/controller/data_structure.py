@@ -242,6 +242,10 @@ class IP2HC:
         update_scheme = {}
         load_directly = CACHE_SIZE - len(self.cache)
         # Select count item to be replaced
+        if DEBUG_OPTION:
+            print(
+                "Debug: Decide to add or replace %d cache entries ..." % count
+            )
         if count <= load_directly:
             for i in range(count):
                 controller_item = self.impact_heap.pop()

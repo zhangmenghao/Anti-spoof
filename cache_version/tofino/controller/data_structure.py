@@ -101,9 +101,8 @@ class IP2HC:
         # Load the default_hc_list into IP2HC and cache
         if len(default_hc_list) > CACHE_SIZE:
             print "Warning: the cache cannot hold the whole default_hc_list"
-        for ip_hc_pair in default_hc_list:
-            ip_addr = ip_hc_pair[0]
-            hc_value = ip_hc_pair[1]
+        for ip_addr in default_hc_list.keys():
+            hc_value = default_hc_list[ip_addr]
             cache_idx = len(self.cache)
             # Load into IP2HC
             ip2hc_idx = self.add_into_ip2hc(ip_addr, hc_value)
@@ -112,15 +111,6 @@ class IP2HC:
                 self.cache_heap.push(ip_addr, cache_idx, cache_idx, 0, 0)
             )
             self.heap_pointer[ip2hc_idx][0] = 0
-        # Load the default_hc_list into cache
-        for cache_idx in range(len(default_hc_list)):
-            ip_addr = default_hc_list[cache_idx][0]
-            ip2hc_idx = self.get_idx_for_ip(ip_addr)
-            if ip2hc_idx == -1:
-                self.cache[cache_idx][1] = -1
-            else:
-                self.cache[cache_idx][1] = ip_addr
-                self.heap_pointer[ip2hc_idx][0] = 0
 
     def add_into_ip2hc(self, ip_addr, hc_value):
         mask = (1 << self.devide_bits) - 1
@@ -248,20 +238,24 @@ class IP2HC:
         if count <= load_directly:
             for i in range(count):
                 controller_item = self.impact_heap.pop()
-                ip_addr = controller_item[1]
-                ip2hc_idx = self.get_idx_for_ip(ip_addr)
-                cache_idx = len(self.cache)
-                self.cache.append(
-                    self.cache_heap.push(
-                        ip_addr, cache_idx, cache_idx, 
-                        self.total_matched[ip2hc_idx], 
-                        self.last_matched[ip2hc_idx]
+                if controller_item[0] == 0.0:
+                    ip_addr = controller_item[1]
+                    ip2hc_idx = self.get_idx_for_ip(ip_addr)
+                    cache_idx = len(self.cache)
+                    self.cache.append(
+                        self.cache_heap.push(
+                            ip_addr, cache_idx, cache_idx, 
+                            self.total_matched[ip2hc_idx], 
+                            self.last_matched[ip2hc_idx]
+                        )
                     )
-                )
-                controller_item[0] = 0
-                self.impact_heap.push_direct(controller_item)
-                update_scheme[cache_idx] = \
-                        (0, ip_addr, self.hc_value[ip2hc_idx])
+                    controller_item[0] = 0
+                    self.impact_heap.push_direct(controller_item)
+                    update_scheme[cache_idx] = \
+                            (0, ip_addr, self.hc_value[ip2hc_idx])
+                else:
+                    # Also in cache
+                    self.impact_heap.push_direct(controller_item)
         else:
             for i in range(count - load_directly):
                 controller_list_to_replace.append(self.impact_heap.pop())

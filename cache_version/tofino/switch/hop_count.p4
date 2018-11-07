@@ -25,7 +25,7 @@
 #define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
 #define PACKET_TRUNCATE_LENGTH 54
 #define CLONE_SPEC_VALUE 250
-#define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
+#define CONTROLLER_IP_ADDRESS 167772414 //10.0.0.255
 #define CONTROLLER_MAC_ADDRESS 0x000600000010
 
 header_type meta_t {

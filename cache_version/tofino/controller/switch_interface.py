@@ -464,6 +464,7 @@ class NetHCFSwitchTofino:
         if DEBUG_OPTION:
             print("Debug: table add for IP2HC-MAT success")
             print("Debug: now %d entries exist in IP2HC-MAT" % result)
+        return result
         # Extracting info(entry_handle) from the result is to be completed
 
     # Delete entry into IP2HC Match-Action-Table

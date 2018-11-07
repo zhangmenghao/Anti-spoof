@@ -218,7 +218,7 @@ class IP2HC:
             self.total_matched[ip2hc_idx] += times
             self.cache_heap.update(
                 self.cache[cache_idx], 
-                self.total_matched[ip_addr], self.last_matched[ip_addr]
+                self.total_matched[ip2hc_idx], self.last_matched[ip2hc_idx]
             )
 
     def get_cached_size(self):

@@ -201,10 +201,9 @@ class IP2HC:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         ip2hc_idx = self.get_idx_for_ip(ip_addr)
         if ip2hc_idx == -1:
-            return -1
+            self.add_into_ip2hc(ip_addr, hc_value)
         else:
             self.hc_value[ip2hc_idx] = hc_value
-            return 0
 
     
     def sync_match_times(self, cache_idx, times):

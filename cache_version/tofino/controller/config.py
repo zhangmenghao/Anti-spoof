@@ -4,7 +4,7 @@
 import socket
 import struct
 
-CONTROLLER_IP = "192.168.56.101"
+CONTROLLER_IP = "10.0.0.254"
 TYPE_IPV4 = 0x0800
 TYPE_TCP = 0x06
 FLAG_SYN = 0b000010
@@ -34,6 +34,10 @@ TARGET_CODE = "hop_count.json"
 TARGET_PORT = 22223
 
 FILTERING_BATCH = 10
+
+DEVIDE_BITS = 8
+
+DEFAULT_HC = 0
 
 NETHCF_SWITCH_CONFIG = {
     # project name in p4

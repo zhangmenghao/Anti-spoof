@@ -121,12 +121,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             pass
 
     def runTest(self):
-        controller = NetHCFController(
-            "veth251", [
-                (10, 64), (11, 64), (12, 64), (13, 64), (14, 64), 
-                (15, 64), (16, 64), (17, 64), (18, 64), (19, 64)
-            ]
-        )
+        controller = NetHCFController("veth251", {0: 0})
 
         # TODO: self.client.*table*_set_default_action_*action*(self.sess_hdl, self.dev_tgt);
         controller.initialize()

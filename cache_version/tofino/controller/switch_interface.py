@@ -443,10 +443,10 @@ class NetHCFSwitchTofino:
 
     # Add entry into IP2HC Match-Action-Table
     def add_into_ip2hc_mat(self, ip_addr, cache_idx):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # # Temporary method...
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         if DEBUG_OPTION:
@@ -464,14 +464,15 @@ class NetHCFSwitchTofino:
         if DEBUG_OPTION:
             print("Debug: table add for IP2HC-MAT success")
             print("Debug: now %d entries exist in IP2HC-MAT" % result)
+        return result
         # Extracting info(entry_handle) from the result is to be completed
 
     # Delete entry into IP2HC Match-Action-Table
     def delete_from_ip2hc_mat(self, ip_addr):
-        if type(ip_addr) != str:
-            ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # if type(ip_addr) != str:
+            # ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
+        # # Temporary method...
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
         if DEBUG_OPTION:

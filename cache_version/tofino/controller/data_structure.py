@@ -262,20 +262,24 @@ class IP2HC:
                 cache_list_to_replace.append(self.cache_heap.pop())
             for i in range(load_directly):
                 controller_item = self.impact_heap.pop()
-                ip_addr = controller_item[1]
-                ip2hc_idx = self.get_idx_for_ip(ip_addr)
-                cache_idx = len(self.cache)
-                self.cache.append(
-                    self.cache_heap.push(
-                        ip_addr, cache_idx, cache_idx, 
-                        self.total_matched[ip2hc_idx], 
-                        self.last_matched[ip2hc_idx]
+                if controller_item[0] == 0.0:
+                    ip_addr = controller_item[1]
+                    ip2hc_idx = self.get_idx_for_ip(ip_addr)
+                    cache_idx = len(self.cache)
+                    self.cache.append(
+                        self.cache_heap.push(
+                            ip_addr, cache_idx, cache_idx, 
+                            self.total_matched[ip2hc_idx], 
+                            self.last_matched[ip2hc_idx]
+                        )
                     )
-                )
-                controller_item[0] = 0
-                self.impact_heap.push_direct(controller_item)
-                update_scheme[cache_idx] = \
-                        (0, ip_addr, self.hc_value[ip2hc_idx])
+                    controller_item[0] = 0
+                    self.impact_heap.push_direct(controller_item)
+                    update_scheme[cache_idx] = \
+                            (0, ip_addr, self.hc_value[ip2hc_idx])
+                else:
+                    # Also in cache
+                    self.impact_heap.push_direct(controller_item)
             for i in range(count - load_directly):
                 cache_item = cache_list_to_replace[i]
                 controller_item = controller_list_to_replace[i]

@@ -33,7 +33,7 @@ header_type meta_t {
         ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
         tcp_session_map_index : TCP_SESSION_MAP_BITS;
         tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
-        tcp_session_seq : 32; // sequince number of SYN-ACK packet
+        tcp_session_seq : 32; // sequence number of SYN-ACK packet
         ip_to_hc_index : IP_TO_HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
         hcf_state : 1; // 0: Learning 1: Filtering
@@ -295,13 +295,13 @@ table session_check_table {
     }
 }
 
-// Store sesscon state for concurrent tcp connections
+// Store session state for concurrent tcp connections
 register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
 } 
 
-// Store sesscon sequince number(SYN-ACK's) for concurrent tcp connections
+// Store session sequence number(SYN-ACK's) for concurrent tcp connections
 register session_seq {
     width : 32;
     instance_count : TCP_SESSION_MAP_SIZE;
@@ -435,7 +435,7 @@ control ingress {
         apply(packet_normal_table);
     }
     else {
-        // Get basic infomation of switch
+        // Get basic information of switch
         apply(hcf_check_table);
         // Get session state
         apply(session_check_table);
@@ -456,7 +456,7 @@ control ingress {
             if (meta.ip2hc_table_hit == 1) {
                 // Get session state
                 if (meta.tcp_session_state == 1) {
-                    // The connection is wainting to be established
+                    // The connection is waiting to be established
                     if (tcp.ackNo == meta.tcp_session_seq + 1) {
                         // Legal connection, computes the hop count value and
                         // updates the ip2hc table on the switch and controller

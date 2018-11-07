@@ -4,7 +4,7 @@
 import socket
 import struct
 
-CONTROLLER_IP = "192.168.56.101"
+CONTROLLER_IP = "10.0.0.254"
 TYPE_IPV4 = 0x0800
 TYPE_TCP = 0x06
 FLAG_SYN = 0b000010

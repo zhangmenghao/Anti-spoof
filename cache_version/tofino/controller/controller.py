@@ -176,7 +176,7 @@ class NetHCFController:
                     digest_entry.tcp_psh << 3 | digest_entry.tcp_rst << 2| \
                     digest_entry.tcp_syn << 1 | digest_entry.tcp_fin
         # if ip_dst == CONTROLLER_IP:
-        if ip_dst == 255:
+        if ip_dst == struct.unpack('!I', socket.inet_aton(CONTROLLER_IP))[0]:
             # This is update request
             if ip_protocol == TYPE_TCP:
                 # This is a write back request

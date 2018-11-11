@@ -27,6 +27,7 @@
 #define CLONE_SPEC_VALUE 250
 #define CONTROLLER_IP_ADDRESS 167772414 //10.0.0.255
 #define CONTROLLER_MAC_ADDRESS 0x000600000010
+#define HIT_COUNT_THRESHOLD 1000
 
 header_type meta_t {
     fields {
@@ -47,6 +48,7 @@ header_type meta_t {
         session_complete_flag: 1;
         tcp_synack: 1;
         dstAddr : 32;
+        packet_hit_count : 32;
     }
 }
 
@@ -175,13 +177,37 @@ blackbox stateful_alu write_hop_count {
 // it was a `counter` in bmv2 version
 // write only
 register hit_count {
-    width: 32;
+    width : 32;
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
 blackbox stateful_alu update_hit_count {
     reg: hit_count;
     update_lo_1_value: register_lo + 1;
+    output_value: alu_lo;
+    output_dst: meta.packet_hit_count;
     initial_register_lo_value: 0;
+}
+
+// If this flag is 1, the corresponding entry will be kept
+// when cache is updating, otherwise it'll be abandoned.
+register entry_keep_flag {
+    width : 1;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+blackbox stateful_alu set_entry_keep_flag_operation {
+    reg : entry_keep_flag;
+    update_lo_1_value : 1;
+    initial_register_lo_value : 0;
+}
+
+action set_entry_keep_flag() {
+    set_entry_keep_flag_operation.execute_stateful_alu();
+}
+
+table set_entry_keep_flag_table {
+    actions {
+        set_entry_keep_flag;
+    }
 }
 
 action get_src_ip() {
@@ -546,13 +572,15 @@ control ingress {
     else {
         // Get basic infomation of switch
         apply(hcf_check_table);
-        // calculate session_map_index
+        // Calculate session_map_index
         apply(calculate_session_map_index_table);
         // Get ip address used to match ip_to_hc_table
         apply(get_ip_table);
         // Match ip_to_hc_table
         apply(ip_to_hc_table);
         apply(ip_to_hc_table_2);
+        if (meta.packet_hit_count > HIT_COUNT_THRESHOLD)
+            apply(set_entry_keep_flag_table);
         // Compute packet's hop count and refer to its origin hop count
         apply(hc_compute_table);
 

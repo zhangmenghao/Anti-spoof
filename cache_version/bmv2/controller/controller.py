@@ -84,7 +84,7 @@ class NetHCFController:
         elif 60 <= current_ttl <= 63:
             hop_count = 64 - current_ttl
             hop_count_possible = hop_count
-        elif 63 <= current_ttl <= 127:
+        elif 64 <= current_ttl <= 127:
             hop_count = 128 - current_ttl
             hop_count_possible = hop_count
         else:

@@ -144,8 +144,8 @@ class NetHCFSwitchBMv2:
     def add_into_ip2hc_mat_cmd(self, ip_addr, cache_idx):
         if type(ip_addr) != str:
             ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
-        # Temporary method...
-        ip_addr = ip_addr.replace('0', '10', 1)
+        # # Temporary method...
+        # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
                 "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 

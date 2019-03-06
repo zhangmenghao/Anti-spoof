@@ -229,6 +229,7 @@ class IP2HC:
         cache_list_to_replace = []
         controller_list_to_replace = []
         update_scheme = {}
+        # scheme structure: {cache_idx: (old_ip, new_ip, new_hc)}
         load_directly = CACHE_SIZE - len(self.cache)
         # Select count item to be replaced
         if DEBUG_OPTION:

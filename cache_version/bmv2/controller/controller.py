@@ -93,9 +93,9 @@ class NetHCFController:
         return hop_count, hop_count_possible
 
     def process_packets_miss_cache(self, pkt):
-        # Temporary method
-        pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
-        pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
+        # # Temporary method
+        # pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
+        # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         if DEBUG_OPTION:
             print "Debug: " + pkt.summary()
         hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
@@ -160,11 +160,11 @@ class NetHCFController:
     def pull_switch_counters(self):
         self.miss = self.switch.read_miss_counter()
         self.mismatch += self.switch.read_mismatch_counter()
-        for idx in range(CACHE_SIZE):
+        for idx in range(self.ip2hc.get_cached_size()):
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
     
     def load_cache_into_switch(self):
-        for idx in range(CACHE_SIZE):
+        for idx in range(self.ip2hc.get_cached_size()):
             ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
             entry_handle = self.switch.add_into_ip2hc_mat(ip_addr, idx)
             if entry_handle != -1:
@@ -176,7 +176,8 @@ class NetHCFController:
             entry_handle = update_scheme[cache_idx][0]
             new_ip_addr = update_scheme[cache_idx][1]
             hc_value = update_scheme[cache_idx][2]
-            self.switch.delete_from_ip2hc_mat(entry_handle)
+            if entry_handle != NOT_DELETE_HANDLE:
+                self.switch.delete_from_ip2hc_mat(entry_handle)
             entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
@@ -191,5 +192,5 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("s1-eth3", [(11, 64)])
+    controller = NetHCFController("s1-eth3", {0x0A00000B: 64})
     controller.run()

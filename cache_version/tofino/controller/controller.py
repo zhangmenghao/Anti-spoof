@@ -275,11 +275,11 @@ class NetHCFController:
 
     def update_cache_into_switch(self, update_scheme):
         for cache_idx in update_scheme.keys():
-            entry_handle = update_scheme[cache_idx][0]
+            old_ip_addr = update_scheme[cache_idx][0]
             new_ip_addr = update_scheme[cache_idx][1]
             hc_value = update_scheme[cache_idx][2]
             if entry_handle !=0:
-                self.switch.delete_from_ip2hc_mat(entry_handle)
+                self.switch.delete_from_ip2hc_mat(old_ip_addr)
             entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
@@ -294,5 +294,5 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("veth251", [(11, 64)])
+    controller = NetHCFController("veth251", {0x0A00000B: 64})
     # controller.run()

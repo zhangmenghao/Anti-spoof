@@ -26,6 +26,12 @@ IP_SPACE_SIZE = 2**8
 LEARN_TO_FILTER_THR = 20
 FILTER_TO_LEARN_THR = 15
 
+DEVIDE_BITS = 8
+
+DEFAULT_HC = 0
+
+NOT_DELETE_HANDLE = -2
+
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_SWITCH = BMV2_PATH +  "/targets/simple_switch/sswitch_CLI"
 TARGET_CODE = "hop_count.json"

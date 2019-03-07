@@ -17,7 +17,6 @@ table_set_default packet_miss_table tag_abnormal
 table_set_default modify_field_and_truncate_table nop
 table_set_default hit_count_update_table update_hit_count
 table_set_default hit_bitmap_set_table set_hit_bitmap
-table_add hcf_check_table check_hcf 2 => 0
 table_add session_check_table lookup_session_map 1 =>
 table_add session_check_table lookup_reverse_session_map 2 =>
 table_add session_complete_table complete_session 1 =>

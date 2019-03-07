@@ -11,7 +11,7 @@ from multiprocessing import Process
 class NetHCFController:
     def __init__(self, iface, default_hc_list):
         self.switch = NetHCFSwitchBMv2(
-            NETHCF_SWITCH_CONFIG, TARGET_SWITCH, TARGET_CODE, TARGET_PORT
+            NETHCF_SWITCH_CONFIG, TARGET_THRIFT_IP, TARGET_THRIFT_PORT
         )
         self.iface = iface
         self.ip2hc = IP2HC(impact_factor_function, default_hc_list);

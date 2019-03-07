@@ -25,8 +25,8 @@ class NetHCFSwitchBMv2:
 
     def read_miss_counter_cmd(self):
         return (
-            '''echo "counter_read %s 0" | %s %s %d''' 
-            % (self.miss_counter, 
+            '''echo "counter_read %s 0" | %s %s %d'''
+            % (self.miss_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -48,8 +48,8 @@ class NetHCFSwitchBMv2:
 
     def reset_miss_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.miss_counter, 
+            '''echo "counter_reset %s" | %s %s %d'''
+            % (self.miss_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -63,8 +63,8 @@ class NetHCFSwitchBMv2:
 
     def read_mismatch_counter_cmd(self):
         return (
-            '''echo "counter_read %s 0" | %s %s %d''' 
-            % (self.mismatch_counter, 
+            '''echo "counter_read %s 0" | %s %s %d'''
+            % (self.mismatch_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -86,8 +86,8 @@ class NetHCFSwitchBMv2:
 
     def reset_mismatch_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
-            % (self.mismatch_counter, 
+            '''echo "counter_reset %s" | %s %s %d'''
+            % (self.mismatch_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -101,8 +101,8 @@ class NetHCFSwitchBMv2:
 
     def read_hits_counter_cmd(self, cache_idx):
         return (
-            '''echo "register_read %s %d" | %s %s %d''' 
-            % (self.ip2hc_counter, cache_idx, 
+            '''echo "register_read %s %d" | %s %s %d'''
+            % (self.ip2hc_counter, cache_idx,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -130,8 +130,8 @@ class NetHCFSwitchBMv2:
 
     def reset_hits_counter_cmd(self):
         return (
-            '''echo "register_reset %s" | %s %s %d''' 
-            % (self.ip2hc_counter, 
+            '''echo "register_reset %s" | %s %s %d'''
+            % (self.ip2hc_counter,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -151,12 +151,12 @@ class NetHCFSwitchBMv2:
         # ip_addr = ip_addr.replace('0', '10', 1)
         if DEBUG_OPTION:
             print(
-                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..." 
+                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d ..."
                 % (ip_addr, cache_idx)
             )
         return (
-            '''echo "table_add %s %s %s => %d" | %s %s %d''' 
-            % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx, 
+            '''echo "table_add %s %s %s => %d" | %s %s %d'''
+            % (self.ip2hc_mat, self.read_hc_function, ip_addr, cache_idx,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -178,15 +178,15 @@ class NetHCFSwitchBMv2:
 
     def update_hc_value_cmd(self, cache_idx, hc_value):
         return (
-            '''echo "register_write %s %d %d" | %s %s %d''' 
-            % (self.ip2hc_register, cache_idx, hc_value, 
+            '''echo "register_write %s %d %d" | %s %s %d'''
+            % (self.ip2hc_register, cache_idx, hc_value,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def update_hc_value(self, cache_idx, hc_value):
         if DEBUG_OPTION:
             print(
-                "Debug: Updating item with cache index %d to %d ..."  
+                "Debug: Updating item with cache index %d to %d ..."
                 % (cache_idx, hc_value)
             )
         result = os.popen(self.update_hc_value_cmd(cache_idx, hc_value)).read()
@@ -195,16 +195,16 @@ class NetHCFSwitchBMv2:
             print self.error_hint_str
 
     # Add entry into IP2HC Match-Action-Table
-    def delete_from_ip2hc_mat_cmd(self, entry_handle): 
-        return ( '''echo "table_delete %s %d" | %s %s %d''' 
-            % (self.ip2hc_mat, entry_handle, 
+    def delete_from_ip2hc_mat_cmd(self, entry_handle):
+        return ( '''echo "table_delete %s %d" | %s %s %d'''
+            % (self.ip2hc_mat, entry_handle,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def delete_from_ip2hc_mat(self, entry_handle):
         if DEBUG_OPTION:
             print(
-                "Debug: deleting IP2HC-MAT with entry handle %d ..." 
+                "Debug: deleting IP2HC-MAT with entry handle %d ..."
                 % entry_handle
             )
         result = os.popen(self.delete_from_ip2hc_mat_cmd(entry_handle)).read()
@@ -217,15 +217,15 @@ class NetHCFSwitchBMv2:
         if type(ip_addr) != str:
             ip_addr = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
         return (
-            '''echo "table_dump_entry_from_key %s %s 0" | %s %s %d''' 
-            % (self.ip2hc_mat, ip_addr, 
+            '''echo "table_dump_entry_from_key %s %s 0" | %s %s %d'''
+            % (self.ip2hc_mat, ip_addr,
                self.target_switch, self.target_code, self.target_port)
         )
 
     def read_hcf_state_cmd(self):
         return (
-            '''echo "register_read %s 0" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_read %s 0" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -249,8 +249,8 @@ class NetHCFSwitchBMv2:
 
     def switch_to_learning_state_cmd(self):
         return (
-            '''echo "register_write %s 0 0" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_write %s 0 0" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -267,8 +267,8 @@ class NetHCFSwitchBMv2:
 
     def switch_to_filtering_state_cmd(self):
         return (
-            '''echo "register_write %s 0 1" | %s %s %d''' 
-            % (self.hcf_state, 
+            '''echo "register_write %s 0 1" | %s %s %d'''
+            % (self.hcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 

@@ -1,7 +1,7 @@
 /*************************************************************************
     > File Name: hop_count.c
-    > Author: 
-    > Mail: 
+    > Author:
+    > Mail:
     > Created Time: Fri 11 May 2018 9:12:19 AM CST
 ************************************************************************/
 
@@ -21,7 +21,7 @@
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8
-#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register 
+#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
 #define PACKET_TRUNCATE_LENGTH 54
 #define CLONE_SPEC_VALUE 250
 #define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
@@ -33,7 +33,7 @@ header_type meta_t {
     fields {
         packet_hop_count : HOP_COUNT_SIZE; // Hop Count of this packet
         ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
-        hit_count_value : HIT_COUNT_SIZE; // Hit Count in hit_count table 
+        hit_count_value : HIT_COUNT_SIZE; // Hit Count in hit_count table
         tcp_session_map_index : TCP_SESSION_MAP_BITS;
         tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
         tcp_session_seq : 32; // sequence number of SYN-ACK packet
@@ -206,7 +206,7 @@ action table_hit(index) {
     modify_field(meta.ip2hc_table_hit, 1);
 }
 
-// The ip2hc table, if the current packet hits the ip2hc table, action 
+// The ip2hc table, if the current packet hits the ip2hc table, action
 // table_hit is executed, otherwise action table_miss is executed
 table ip_to_hc_table {
     reads {
@@ -231,10 +231,10 @@ action filtering_abnormal() {
 
 // If the packet is judged as abnormal because its suspected hop-count,
 // handle it according to the switch state and whether the packet is sampled.
-// For learning state: if the packet is sampled, just update abnormal_counter 
-// and tag it as normal(don't drop it); if the packet is not sampled, it won't 
+// For learning state: if the packet is sampled, just update abnormal_counter
+// and tag it as normal(don't drop it); if the packet is not sampled, it won't
 // go through this table because switch don't check its hop count.
-// For filtering state, every abnormal packets should be dropped but update 
+// For filtering state, every abnormal packets should be dropped but update
 // abnormal_counter specially for these sampled.
 table hc_abnormal_table {
     reads {
@@ -284,7 +284,7 @@ action lookup_session_map() {
         tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
     register_read(
-        meta.tcp_session_state, session_state, 
+        meta.tcp_session_state, session_state,
         meta.tcp_session_map_index
     );
     register_read(
@@ -299,7 +299,7 @@ action lookup_reverse_session_map() {
         reverse_tcp_session_map_hash, TCP_SESSION_MAP_SIZE
     );
     register_read(
-        meta.tcp_session_state, session_state, 
+        meta.tcp_session_state, session_state,
         meta.tcp_session_map_index
     );
     register_read(
@@ -308,7 +308,7 @@ action lookup_reverse_session_map() {
     );
 }
 
-// Get packets' tcp session information. Notice: dual direction packets in one 
+// Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
 table session_check_table {
     reads {
@@ -324,13 +324,13 @@ table session_check_table {
 register session_state {
     width : TCP_SESSION_STATE_SIZE;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
 
 // Store session sequence number(SYN-ACK's) for concurrent tcp connections
 register session_seq {
     width : 32;
     instance_count : TCP_SESSION_MAP_SIZE;
-} 
+}
 
 action init_session() {
     register_write(session_state, meta.tcp_session_map_index, 1);
@@ -414,7 +414,7 @@ action only_truncate() {
     truncate(PACKET_TRUNCATE_LENGTH);
 }
 
-// Only the packets' header are send to controller 
+// Only the packets' header are send to controller
 table modify_field_and_truncate_table {
     reads {
         meta.hcf_state : exact;
@@ -446,7 +446,7 @@ action session_complete_update() {
     clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
 }
 
-// When a session is complete on the switch, the switch will send 
+// When a session is complete on the switch, the switch will send
 // a packet to controller to update ip2hc table on the controller
 table session_complete_update_table {
     actions {
@@ -472,7 +472,7 @@ control ingress {
             // For syn/ack packets
             if (meta.ip2hc_table_hit == 0)
                 apply(miss_packet_clone_table);
-            else   
+            else
                 apply(session_init_table);
             apply(packet_normal_table);
         }

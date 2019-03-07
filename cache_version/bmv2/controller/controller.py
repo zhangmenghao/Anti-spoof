@@ -19,7 +19,7 @@ class NetHCFController:
         self.miss = 0
         self.mismatch = 0
         self.hcf_state = 0 # 0: learning 1: filtering
-        self.learn_to_filter_thr = LEARN_TO_FILTER_THR 
+        self.learn_to_filter_thr = LEARN_TO_FILTER_THR
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
     def initialize(self):
@@ -27,7 +27,7 @@ class NetHCFController:
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
-    
+
     def run(self):
         self.initialize()
         self.process_packets()
@@ -38,7 +38,7 @@ class NetHCFController:
         update_process = Process(target=self.process_updates, args=(5,))
         packet_process.start()
         update_process.start()
-    
+
     def process_packets(self):
         sniff(iface=self.iface, prn=self.packets_callback())
 
@@ -55,7 +55,7 @@ class NetHCFController:
                     # This is a write back request
                     # A SYN ACK ACK packet with replaced dst address
                     self.ip2hc.update(
-                        pkt[IP].src, 
+                        pkt[IP].src,
                         self.compute_hc(pkt[IP])
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
@@ -64,12 +64,12 @@ class NetHCFController:
             else:
                 # This is the header of traffic missing IP2HC in the cache
                 self.process_packets_miss_cache(pkt)
-        return process_function 
+        return process_function
 
     def compute_hc(self, current_ttl):
         hop_count = 0
         hop_count_possible = 0
-        # Select initial TTL according to current TTL, and compute HC 
+        # Select initial TTL according to current TTL, and compute HC
         if 0 <= current_ttl <= 29:
             # Initial TTL may be 30, or 32
             hop_count = 30 - current_ttl
@@ -162,7 +162,7 @@ class NetHCFController:
         self.mismatch += self.switch.read_mismatch_counter()
         for idx in range(self.ip2hc.get_cached_size()):
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
-    
+
     def load_cache_into_switch(self):
         for idx in range(self.ip2hc.get_cached_size()):
             ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
@@ -182,7 +182,7 @@ class NetHCFController:
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
                 self.switch.update_hc_value(cache_idx, hc_value)
-    
+
     def reset_period_counters(self):
         self.miss = 0
         self.mismatch = 0

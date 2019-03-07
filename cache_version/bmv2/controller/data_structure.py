@@ -91,7 +91,7 @@ class IP2HC:
         self.last_matched = array('B', [])
         print("Last Matched List Size: %d" % sys.getsizeof(self.last_matched))
         # self.heap_pointer = [
-            # self.impact_heap.push(ip_addr, 0, 0) 
+            # self.impact_heap.push(ip_addr, 0, 0)
             # for ip_addr in range(IP_SPACE_SIZE)
         # ]
         self.heap_pointer = []
@@ -181,7 +181,7 @@ class IP2HC:
             self.last_matched[ip2hc_idx] += times
             self.total_matched[ip2hc_idx] += times
             self.impact_heap.update(
-                self.heap_pointer[ip2hc_idx], 
+                self.heap_pointer[ip2hc_idx],
                 self.total_matched[ip2hc_idx], self.last_matched[ip2hc_idx]
             )
             return 0
@@ -195,7 +195,7 @@ class IP2HC:
         else:
             self.hc_value[ip2hc_idx] = hc_value
 
-    
+
     def sync_match_times(self, cache_idx, times):
         ip_addr = self.cache[cache_idx][1]
         ip2hc_idx = self.get_idx_for_ip(ip_addr)
@@ -206,7 +206,7 @@ class IP2HC:
             self.last_matched[ip2hc_idx] += times
             self.total_matched[ip2hc_idx] += times
             self.cache_heap.update(
-                self.cache[cache_idx], 
+                self.cache[cache_idx],
                 self.total_matched[ip2hc_idx], self.last_matched[ip2hc_idx]
             )
 
@@ -248,8 +248,8 @@ class IP2HC:
                     cache_idx = len(self.cache)
                     self.cache.append(
                         self.cache_heap.push(
-                            ip_addr, cache_idx, cache_idx, 
-                            self.total_matched[ip2hc_idx], 
+                            ip_addr, cache_idx, cache_idx,
+                            self.total_matched[ip2hc_idx],
                             self.last_matched[ip2hc_idx]
                         )
                     )
@@ -272,8 +272,8 @@ class IP2HC:
                     cache_idx = len(self.cache)
                     self.cache.append(
                         self.cache_heap.push(
-                            ip_addr, cache_idx, cache_idx, 
-                            self.total_matched[ip2hc_idx], 
+                            ip_addr, cache_idx, cache_idx,
+                            self.total_matched[ip2hc_idx],
                             self.last_matched[ip2hc_idx]
                         )
                     )
@@ -298,8 +298,8 @@ class IP2HC:
                     return {}
                 # Push new item from controller into cache
                 self.cache[cache_idx] = self.cache_heap.push(
-                    new_ip_addr, cache_idx, entry_handle, 
-                    self.total_matched[new_ip_ip2hc_idx], 
+                    new_ip_addr, cache_idx, entry_handle,
+                    self.total_matched[new_ip_ip2hc_idx],
                     self.last_matched[new_ip_ip2hc_idx]
                 )
                 # Set the impact factor of thoes pushed into cache to 0
@@ -312,7 +312,7 @@ class IP2HC:
                 # Set the impact factor of those from cache to normal
                 self.impact_heap.update(
                     self.heap_pointer[old_ip_ip2hc_idx],
-                    self.total_matched[old_ip_ip2hc_idx], 
+                    self.total_matched[old_ip_ip2hc_idx],
                     self.last_matched[old_ip_ip2hc_idx]
                 )
         return update_scheme

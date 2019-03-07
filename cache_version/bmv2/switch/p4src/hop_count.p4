@@ -151,7 +151,7 @@ register hit_count {
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
 
-action update_hit_count {
+action update_hit_count() {
     register_read(meta.hit_count_value, hit_count, meta.ip_to_hc_index);
     add_to_field(meta.hit_count_value, 1);
     register_write(hit_count, meta.ip_to_hc_index, meta.hit_count_value);
@@ -166,7 +166,7 @@ register hit_bitmap {
     instance_count : IP_TO_HC_TABLE_SIZE;
 }
 
-action set_hit_bitmap {
+action set_hit_bitmap() {
     register_write(hit_bitmap, meta.ip_to_hc_index, 1);
 }
 
@@ -505,12 +505,12 @@ control ingress {
                         }
                         else {
                             // It is normal
-                            apply(packet_normal_table);
                             // Only update hit count when the packet is legal
                             apply(hit_count_update_table);
                             if (meta.hit_count_value > HIT_THRESHOLD) {
                                 apply(hit_bitmap_set_table);
                             }
+                            apply(packet_normal_table);
                         }
                     }
                     else {

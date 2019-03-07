@@ -15,6 +15,8 @@ table_set_default miss_packet_clone_table_copy packet_clone
 table_set_default session_complete_update_table session_complete_update
 table_set_default packet_miss_table tag_abnormal
 table_set_default modify_field_and_truncate_table nop
+table_set_default hit_count_update_table update_hit_count
+table_set_default hit_bitmap_set_table set_hit_bitmap
 table_add hcf_check_table check_hcf 2 => 0
 table_add session_check_table lookup_session_map 1 =>
 table_add session_check_table lookup_reverse_session_map 2 =>
@@ -23,15 +25,15 @@ table_add get_ip_table get_des_ip 1 1 =>
 table_add hc_compute_table compute_hc 0->29 => 30 0
 table_add hc_compute_table compute_hc 30->31 => 32 0
 table_add hc_compute_table compute_hc 32->59 => 60 0
-table_add hc_compute_table compute_hc 60->64 => 64 0
-table_add hc_compute_table compute_hc 65->128 => 128 0
-table_add hc_compute_table compute_hc 129->254 => 255 0
+table_add hc_compute_table compute_hc 60->63 => 64 0
+table_add hc_compute_table compute_hc 64->127 => 128 0
+table_add hc_compute_table compute_hc 128->255 => 255 0
 table_add hc_compute_table_copy compute_hc 0->29 => 30 0
 table_add hc_compute_table_copy compute_hc 30->31 => 32 0
 table_add hc_compute_table_copy compute_hc 32->59 => 60 0
-table_add hc_compute_table_copy compute_hc 60->64 => 64 0
-table_add hc_compute_table_copy compute_hc 65->128 => 128 0
-table_add hc_compute_table_copy compute_hc 129->254 => 255 0
+table_add hc_compute_table_copy compute_hc 60->63 => 64 0
+table_add hc_compute_table_copy compute_hc 64->127 => 128 0
+table_add hc_compute_table_copy compute_hc 128->255 => 255 0
 table_add hc_abnormal_table learning_abnormal 0 =>
 table_add hc_abnormal_table filtering_abnormal 1 =>
 table_add l2_forward_table forward_l2 0 1 => 2

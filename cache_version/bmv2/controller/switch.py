@@ -101,7 +101,7 @@ class NetHCFSwitchBMv2:
 
     def read_hits_counter_cmd(self, cache_idx):
         return (
-            '''echo "counter_read %s %d" | %s %s %d''' 
+            '''echo "register_read %s %d" | %s %s %d''' 
             % (self.ip2hc_counter, cache_idx, 
                self.target_switch, self.target_code, self.target_port)
         )
@@ -114,8 +114,11 @@ class NetHCFSwitchBMv2:
             )
         result = os.popen(self.read_hits_counter_cmd(cache_idx)).read()
         try:
-            packets_str = result[result.index("packets="):].split(',')[0]
-            match_times = int(packets_str.split('=')[1]) 
+            match_times_str = \
+                result[result.index(\
+                    "%s[%d]=" % (self.ip2hc_counter, cache_idx)\
+                ):].split()[1]
+            match_times = int(match_times_str)
         except:
             print "Error: Can't read hits counter!\n"
             print self.error_hint_str
@@ -127,7 +130,7 @@ class NetHCFSwitchBMv2:
 
     def reset_hits_counter_cmd(self):
         return (
-            '''echo "counter_reset %s" | %s %s %d''' 
+            '''echo "register_reset %s" | %s %s %d''' 
             % (self.ip2hc_counter, 
                self.target_switch, self.target_code, self.target_port)
         )

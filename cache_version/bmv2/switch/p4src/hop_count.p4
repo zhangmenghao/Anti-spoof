@@ -9,7 +9,7 @@
 #include "includes/parser.p4"
 
 #define HOP_COUNT_SIZE 8
-#define HC_BITMAP_SIZE 32
+#define HIT_COUNT_SIZE 8
 #define HC_COMPUTE_TABLE_SIZE 8
 #define HC_COMPUTE_TWICE_TABLE_SIZE 3
 #define TCP_SESSION_MAP_BITS 8
@@ -27,10 +27,13 @@
 #define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
 #define CONTROLLER_MAC_ADDRESS 0x000600000010
 
+#define HIT_THRESHOLD 20
+
 header_type meta_t {
     fields {
         packet_hop_count : HOP_COUNT_SIZE; // Hop Count of this packet
         ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
+        hit_count_value : HIT_COUNT_SIZE; // Hit Count in hit_count table 
         tcp_session_map_index : TCP_SESSION_MAP_BITS;
         tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
         tcp_session_seq : 32; // sequence number of SYN-ACK packet
@@ -143,9 +146,32 @@ register hop_count {
 }
 
 // Save the hit count value of each entry in ip2hc table
-counter hit_count {
-    type : packets;
+register hit_count {
+    width : HIT_COUNT_SIZE;
     instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+action update_hit_count {
+    register_read(meta.hit_count_value, hit_count, meta.ip_to_hc_index);
+    add_to_field(meta.hit_count_value, 1);
+    register_write(hit_count, meta.ip_to_hc_index, meta.hit_count_value);
+}
+
+table hit_count_update_table {
+    actions { update_hit_count; }
+}
+
+register hit_bitmap {
+    width : 1;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+action set_hit_bitmap {
+    register_write(hit_bitmap, meta.ip_to_hc_index, 1);
+}
+
+table hit_bitmap_set_table {
+    actions { set_hit_bitmap; }
 }
 
 action get_src_ip() {
@@ -177,7 +203,6 @@ action table_miss() {
 
 action table_hit(index) {
     modify_field(meta.ip_to_hc_index, index);
-    count(hit_count, index);
     modify_field(meta.ip2hc_table_hit, 1);
 }
 
@@ -481,6 +506,11 @@ control ingress {
                         else {
                             // It is normal
                             apply(packet_normal_table);
+                            // Only update hit count when the packet is legal
+                            apply(hit_count_update_table);
+                            if (meta.hit_count_value > HIT_THRESHOLD) {
+                                apply(hit_bitmap_set_table);
+                            }
                         }
                     }
                     else {

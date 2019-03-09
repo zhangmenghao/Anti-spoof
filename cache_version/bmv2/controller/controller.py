@@ -107,7 +107,7 @@ class NetHCFController:
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
             else:
                 self.ip2hc.hit_in_controller(pkt[IP].src, 1)
-            if self.hcf_state == 0:
+            if self.hcf_state == 1:
                 sendp(pkt, iface=self.iface)
         else:
             # The HC may not be computed,

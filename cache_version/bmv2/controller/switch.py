@@ -20,6 +20,7 @@ class NetHCFSwitchBMv2:
         self.miss_counter = switch_config["miss_counter"]
         self.mismatch_counter = switch_config["mismatch_counter"]
         self.ip2hc_counter = switch_config["ip2hc_counter"]
+        self.ip2hc_counter_bitmap = switch_config["ip2hc_counter_bitmap"]
         self.ip2hc_register = switch_config["ip2hc_register"]
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
@@ -46,6 +47,9 @@ class NetHCFSwitchBMv2:
 
     def read_register(self, register_name, index):
         return self.runtime_api.client.bm_register_read(0, register_name, index)
+
+    def read_register_array(self, register_name):
+        return self.runtime_api.client.bm_register_read_all(0, register_name)
 
     def reset_register(self, register_name):
         self.runtime_api.client.bm_register_reset(0, register_name)
@@ -263,7 +267,31 @@ class NetHCFSwitchBMv2:
                 print("Debug: hcf state is switched to filtering state.")
             return 0
 
+    def read_hits_bitmap(self):
+        if DEBUG_OPTION:
+            print("Debug: reading the bitmap for hits counter...")
+        try:
+            hits_bitmap = self.read_register_array(self.ip2hc_counter_bitmap)
+        except:
+            print("Error: Can't read the bitmap for hits counter!\n")
+            print(self.error_hint_str)
+            return 0
+        else:
+            if DEBUG_OPTION:
+                print("Debug: the bitmap for hits counter is "+str(hits_bitmap))
+            return hits_bitmap
 
+    def reset_hits_bitmap(self):
+        if DEBUG_OPTION:
+            print("Debug: resetting the bitmap for hits counter...")
+        try:
+            self.reset_register(self.ip2hc_counter_bitmap)
+        except:
+            print("Error: Can't reset the bitmap for hits counter!\n")
+            print(self.error_hint_str)
+        else:
+            if DEBUG_OPTION:
+                print("Debug: the bitmap for hits counter is resetted.")
 
 class NetHCFSwitchBMv2CMD:
     def __init__(self, switch_config, target_switch, target_code, target_port):

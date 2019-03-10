@@ -27,7 +27,7 @@
 #define CONTROLLER_IP_ADDRESS 3232238335 //192.168.10.255
 #define CONTROLLER_MAC_ADDRESS 0x000600000010
 
-#define HIT_THRESHOLD 20
+#define HIT_THRESHOLD 10
 
 header_type meta_t {
     fields {

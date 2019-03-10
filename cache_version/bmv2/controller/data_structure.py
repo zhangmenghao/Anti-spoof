@@ -250,7 +250,6 @@ class IP2HC:
                 if controller_item[0] == 0.0:
                     # Also in cache
                     self.impact_heap.push_direct(controller_item)
-                    print "debuging... " + "test"
                 else:
                     ip_addr = controller_item[1]
                     ip2hc_idx = self.get_idx_for_ip(ip_addr)

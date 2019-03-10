@@ -46,6 +46,7 @@ NETHCF_SWITCH_CONFIG = {
     "miss_counter": "miss_counter",
     "mismatch_counter": "abnormal_counter",
     "ip2hc_counter": "hit_count",
+    "ip2hc_counter_bitmap": "hit_bitmap",
     # hc value register array name in p4
     "ip2hc_register": "hop_count",
     # IP2HC Match-Action-Table name in p4

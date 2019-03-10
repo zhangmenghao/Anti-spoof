@@ -166,6 +166,7 @@ class NetHCFController:
     def pull_switch_counters(self):
         self.miss.value = self.switch.read_miss_counter()
         self.mismatch.value += self.switch.read_mismatch_counter()
+        self.switch.read_hits_bitmap()
         for idx in range(self.ip2hc.get_cached_size()):
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
 
@@ -195,6 +196,7 @@ class NetHCFController:
         self.switch.reset_miss_counter()
         self.switch.reset_mismatch_counter()
         self.switch.reset_hits_counter()
+        self.switch.reset_hits_bitmap()
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ class NetHCFController:
         self.miss = self.mpmgr.Value('I', 0)
         self.mismatch = self.mpmgr.Value('I', 0)
         self.hcf_state = self.mpmgr.Value('B', 0) # 0: learning 1: filtering
+        self.hits_bitmap = []
         self.learn_to_filter_thr = LEARN_TO_FILTER_THR
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
@@ -158,7 +159,7 @@ class NetHCFController:
             self.hcf_state.value = 0
             self.switch.switch_to_learning_state()
         elif self.hcf_state.value == 0:
-            update_scheme = self.ip2hc.update_cache(self.miss.value)
+            update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
             self.update_cache_into_switch(update_scheme)
         self.reset_period_counters()
 
@@ -166,9 +167,17 @@ class NetHCFController:
     def pull_switch_counters(self):
         self.miss.value = self.switch.read_miss_counter()
         self.mismatch.value += self.switch.read_mismatch_counter()
-        self.switch.read_hits_bitmap()
-        for idx in range(self.ip2hc.get_cached_size()):
-            self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
+        self.hits_bitmap = self.switch.read_hits_bitmap()
+        # for idx in range(self.ip2hc.get_cached_size()):
+            # self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
+        for idx in range(CACHE_SIZE):
+            if self.hits_bitmap[idx] == 0:
+                self.ip2hc.sync_match_times(
+                    idx, self.switch.read_hits_counter(idx)
+                )
+            else:
+                self.ip2hc.sync_match_times(idx, BITMAP_ONE_TO_TIMES)
+
 
     def load_cache_into_switch(self):
         for idx in range(self.ip2hc.get_cached_size()):
@@ -200,6 +209,11 @@ class NetHCFController:
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":
-    controller = NetHCFController("s1-eth3", {0x0A00000B: 64})
+    default_hc_list = {
+        0x0A00000B: 64, 0x0A00000C: 32, 0x0A00000D: 32, 0x0A00000E: 32,\
+        0x0A00000F: 32, 0x0A000010: 32, 0x0A000011: 32, 0x0A000012: 32,\
+        0x0A000013: 32, 0x0A000014: 32
+    }
+    controller = NetHCFController("s1-eth3", default_hc_list)
     # controller.run()
     controller.run_parallel()

@@ -61,7 +61,7 @@ class NetHCFController:
                     # A SYN ACK ACK packet with replaced dst address
                     self.ip2hc.update(
                         pkt[IP].src,
-                        self.compute_hc(pkt[IP])
+                        self.compute_hc(pkt[IP].ttl)
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
                     # This is a cache update request

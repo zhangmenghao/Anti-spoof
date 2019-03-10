@@ -32,6 +32,8 @@ DEFAULT_HC = 0
 
 NOT_DELETE_HANDLE = -2
 
+UPDATE_PERIOD = 5
+
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_THRIFT_IP = 'localhost'
 TARGET_THRIFT_PORT = 22223

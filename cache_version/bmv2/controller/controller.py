@@ -6,24 +6,26 @@ from data_structure import IP2HC, TCP_Session
 from config import *
 from switch import NetHCFSwitchBMv2
 import time
-from multiprocessing import Process
+from multiprocessing import Process, Manager
 
 class NetHCFController:
     def __init__(self, iface, default_hc_list):
         self.switch = NetHCFSwitchBMv2(
             NETHCF_SWITCH_CONFIG, TARGET_THRIFT_IP, TARGET_THRIFT_PORT
         )
+        # MultiProcessing Manager Instance for memory sharing
+        self.mpmgr = Manager()
         self.iface = iface
-        self.ip2hc = IP2HC(impact_factor_function, default_hc_list);
+        self.ip2hc = IP2HC(impact_factor_function, default_hc_list, self.mpmgr);
         self.tcp_session = TCP_Session()
-        self.miss = 0
-        self.mismatch = 0
-        self.hcf_state = 0 # 0: learning 1: filtering
+        self.miss = self.mpmgr.Value('I', 0)
+        self.mismatch = self.mpmgr.Value('I', 0)
+        self.hcf_state = self.mpmgr.Value('B', 0) # 0: learning 1: filtering
         self.learn_to_filter_thr = LEARN_TO_FILTER_THR
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
     def initialize(self):
-        self.hcf_state = 0
+        self.hcf_state.value = 0
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
@@ -34,10 +36,12 @@ class NetHCFController:
 
     def run_parallel(self):
         self.initialize()
-        packet_process = Process(target=self.process_packets, )
-        update_process = Process(target=self.process_updates, args=(5,))
-        packet_process.start()
+        update_process = Process(target=self.process_updates)
+        packet_process = Process(target=self.process_packets)
         update_process.start()
+        packet_process.start()
+        update_process.join()
+        packet_process.join()
 
     def process_packets(self):
         sniff(iface=self.iface, prn=self.packets_callback())
@@ -107,7 +111,7 @@ class NetHCFController:
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
             else:
                 self.ip2hc.hit_in_controller(pkt[IP].src, 1)
-            if self.hcf_state == 1:
+            if self.hcf_state.value == 1:
                 sendp(pkt, iface=self.iface)
         else:
             # The HC may not be computed,
@@ -115,7 +119,7 @@ class NetHCFController:
             # or this is an abnormal packet
             if pkt[IP].proto != TYPE_TCP:
                 # However, we think it is abnormal traffic
-                self.mismatch += 1
+                self.mismatch.value += 1
                 return
             if pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
@@ -129,37 +133,39 @@ class NetHCFController:
                     # SYN, SYN ACK ACK, total two times for ip_addr(src)
                     self.ip2hc.hit_in_controller(pkt[IP].src, 2)
                     # Eliminate the effect of SYN
-                    self.mismatch -= 1
+                    self.mismatch.value -= 1
                 else:
                     # Abnormal packet
-                    self.mismatch += 1
+                    self.mismatch.value += 1
             else:
                 # Such as SYN
-                self.mismatch += 1
+                self.mismatch.value += 1
 
-    def process_updates(self, period):
+    def process_updates(self):
         while True:
+            time.sleep(UPDATE_PERIOD)
             self.process_update_request()
-            time.sleep(period)
 
     def process_update_request(self):
         self.pull_switch_counters()
         # Switch state in terms of abnormal_counter in last period
-        if self.hcf_state == 0 and self.mismatch > self.learn_to_filter_thr:
-            self.hcf_state = 1
+        if self.hcf_state.value == 0 and \
+           self.mismatch.value > self.learn_to_filter_thr:
+            self.hcf_state.value = 1
             self.switch.switch_to_filtering_state()
-        elif self.hcf_state == 1 and self.mismatch < self.filter_to_learn_thr:
-            self.hcf_state = 0
+        elif self.hcf_state.value == 1 and \
+             self.mismatch.value < self.filter_to_learn_thr:
+            self.hcf_state.value = 0
             self.switch.switch_to_learning_state()
-        elif self.hcf_state == 0:
-            update_scheme = self.ip2hc.update_cache(self.miss)
+        elif self.hcf_state.value == 0:
+            update_scheme = self.ip2hc.update_cache(self.miss.value)
             self.update_cache_into_switch(update_scheme)
         self.reset_period_counters()
 
     # Assume controller is running on the switch
     def pull_switch_counters(self):
-        self.miss = self.switch.read_miss_counter()
-        self.mismatch += self.switch.read_mismatch_counter()
+        self.miss.value = self.switch.read_miss_counter()
+        self.mismatch.value += self.switch.read_mismatch_counter()
         for idx in range(self.ip2hc.get_cached_size()):
             self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
 
@@ -184,8 +190,8 @@ class NetHCFController:
                 self.switch.update_hc_value(cache_idx, hc_value)
 
     def reset_period_counters(self):
-        self.miss = 0
-        self.mismatch = 0
+        self.miss.value = 0
+        self.mismatch.value = 0
         self.switch.reset_miss_counter()
         self.switch.reset_mismatch_counter()
         self.switch.reset_hits_counter()
@@ -193,4 +199,5 @@ class NetHCFController:
 
 if __name__ == "__main__":
     controller = NetHCFController("s1-eth3", {0x0A00000B: 64})
-    controller.run()
+    # controller.run()
+    controller.run_parallel()

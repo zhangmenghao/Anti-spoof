@@ -37,6 +37,8 @@ UPDATE_PERIOD = 5
 BITMAP_ZERO_TO_TIMES = 0
 BITMAP_ONE_TO_TIMES = 15
 
+IP2HC_HIT_FLAG = -1
+
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_THRIFT_IP = 'localhost'
 TARGET_THRIFT_PORT = 22223

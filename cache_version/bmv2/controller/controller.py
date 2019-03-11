@@ -16,7 +16,7 @@ class NetHCFController:
         # MultiProcessing Manager Instance for memory sharing
         self.mpmgr = Manager()
         self.iface = iface
-        self.ip2hc = IP2HC(impact_factor_function, default_hc_list, self.mpmgr);
+        self.ip2hc = IP2HC(impact_factor_function, default_hc_list, self.mpmgr)
         self.tcp_session = TCP_Session()
         self.miss = self.mpmgr.Value('I', 0)
         self.mismatch = self.mpmgr.Value('I', 0)
@@ -59,9 +59,8 @@ class NetHCFController:
                 if pkt[IP].proto == TYPE_TCP:
                     # This is a write back request
                     # A SYN ACK ACK packet with replaced dst address
-                    self.ip2hc.update(
-                        pkt[IP].src,
-                        self.compute_hc(pkt[IP].ttl)
+                    self.ip2hc.update_hc(
+                        pkt[IP].src, self.compute_hc(pkt[IP].ttl)
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
                     # This is a cache update request
@@ -103,7 +102,7 @@ class NetHCFController:
         # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         if DEBUG_OPTION:
             print("Debug: " + pkt.summary())
-        hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
+        hc_in_ip2hc = self.ip2hc.read_hc(pkt[IP].src)
         hop_count, hop_count_possible = self.compute_hc(pkt[IP].ttl)
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:
             # Update IP2HC match statistics
@@ -111,7 +110,7 @@ class NetHCFController:
                pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
                 self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
             else:
-                self.ip2hc.hit_in_controller(pkt[IP].src, 1)
+                self.ip2hc.update_match_times(pkt[IP].src, 1)
             if self.hcf_state.value == 1:
                 sendp(pkt, iface=self.iface)
         else:
@@ -130,9 +129,9 @@ class NetHCFController:
                 if state == 1 and pkt[TCP].ack == seq_no + 1:
                     # The connection is established
                     self.tcp_session.update(pkt[IP].src, 0, 0)
-                    self.ip2hc.update(pkt[IP].src, hop_count)
+                    self.ip2hc.update_hc(pkt[IP].src, hop_count)
                     # SYN, SYN ACK ACK, total two times for ip_addr(src)
-                    self.ip2hc.hit_in_controller(pkt[IP].src, 2)
+                    self.ip2hc.update_match_times(pkt[IP].src, 2)
                     # Eliminate the effect of SYN
                     self.mismatch.value -= 1
                 else:
@@ -177,7 +176,6 @@ class NetHCFController:
                 )
             else:
                 self.ip2hc.sync_match_times(idx, BITMAP_ONE_TO_TIMES)
-
 
     def load_cache_into_switch(self):
         for idx in range(self.ip2hc.get_cached_size()):

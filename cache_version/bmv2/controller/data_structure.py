@@ -77,7 +77,7 @@ class IP2HC:
         print("Cache List Size: %d" % sys.getsizeof(self.cache))
         # Load the default_hc_list into IP2HC and cache
         if len(default_hc_list) > CACHE_SIZE:
-            print "Warning: the cache cannot hold the whole default_hc_list"
+            print("Warning: the cache cannot hold the whole default_hc_list")
         for ip_addr in default_hc_list.keys():
             hc_value = default_hc_list[ip_addr]
             cache_idx = len(self.cache)
@@ -185,7 +185,6 @@ class IP2HC:
 
     def get_cached_info(self, cache_idx):
         ip_addr = self.cache[cache_idx][0]
-        # print len(self.hc_value), ip_addr
         ip2hc_idx = self.get_idx_for_ip(ip_addr)
         if ip2hc_idx == -1:
             print("Error: can't find info for this ip %d in IP2HC" % ip_addr)
@@ -305,10 +304,8 @@ class TCP_Session:
         return self.state[ip_addr], self.seq_number[ip_addr]
 
     def update(self, ip_addr, state, seq_number):
-        # print "\n\nDebug: ip %s\n\n" % ip_addr
         if type(ip_addr) == str:
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
-        # print "\n\nDebug: ip %d\n\n" % ip_addr
         # Temporary method
         ip_addr = ip_addr & (IP_SPACE_SIZE - 1)
         self.state[ip_addr] = state

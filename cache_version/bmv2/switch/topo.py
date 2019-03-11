@@ -103,19 +103,19 @@ def main():
 
     cmd = [args.cli, args.json, str(args.thrift_port)]
     with open("commands.txt", "r") as f:
-        print " ".join(cmd)
+        print(" ".join(cmd))
         try:
             output = subprocess.check_output(cmd, stdin = f)
-            print output
+            print(output)
         except subprocess.CalledProcessError as e:
-            print e
-            print e.output
+            print(e)
+            print(e.output)
 
 
     sleep(1)
 
 
-    print "Ready !"
+    print("Ready !")
 
     CLI( net )
     net.stop()

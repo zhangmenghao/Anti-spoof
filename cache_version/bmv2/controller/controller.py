@@ -102,7 +102,7 @@ class NetHCFController:
         # pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
         # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         if DEBUG_OPTION:
-            print "Debug: " + pkt.summary()
+            print("Debug: " + pkt.summary())
         hc_in_ip2hc = self.ip2hc.read(pkt[IP].src)
         hop_count, hop_count_possible = self.compute_hc(pkt[IP].ttl)
         if hop_count==hc_in_ip2hc or hop_count_possible==hc_in_ip2hc:

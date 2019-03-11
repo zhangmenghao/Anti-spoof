@@ -26,7 +26,7 @@ class NetHCFController:
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
     def initialize(self):
-        self.hcf_state.value = 0
+        self.hcf_state.value = HCF_LEARNING_STATE
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
@@ -97,9 +97,6 @@ class NetHCFController:
         return hop_count, hop_count_possible
 
     def process_packets_miss_cache(self, pkt):
-        # # Temporary method
-        # pkt[IP].src = pkt[IP].src.replace("10", "0", 1)
-        # pkt[IP].dst = pkt[IP].dst.replace("10", "0", 1)
         if DEBUG_OPTION:
             print("Debug: " + pkt.summary())
         hc_in_ip2hc = self.ip2hc.read_hc(pkt[IP].src)
@@ -108,10 +105,12 @@ class NetHCFController:
             # Update IP2HC match statistics
             if pkt[IP].proto == TYPE_TCP and \
                pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
-                self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
+                self.tcp_session.update(
+                    pkt[IP].dst, TCP_SESSION_IN_PROGRESS_STATE, pkt[TCP].seq
+                )
             else:
                 self.ip2hc.update_match_times(pkt[IP].src, 1)
-            if self.hcf_state.value == 1:
+            if self.hcf_state.value == HCF_FILTERING_STATE:
                 sendp(pkt, iface=self.iface)
         else:
             # The HC may not be computed,
@@ -122,13 +121,18 @@ class NetHCFController:
                 self.mismatch.value += 1
                 return
             if pkt[TCP].flags == (FLAG_SYN | FLAG_ACK):
-                self.tcp_session.update(pkt[IP].dst, 1, pkt[TCP].seq)
+                self.tcp_session.update(
+                    pkt[IP].dst, TCP_SESSION_IN_PROGRESS_STATE, pkt[TCP].seq
+                )
             elif pkt[TCP].flags == FLAG_ACK:
                 state, seq_no = self.tcp_session.read(pkt[IP].src)
                 # This is SYN ACK ACK.
-                if state == 1 and pkt[TCP].ack == seq_no + 1:
+                if state == TCP_SESSION_IN_PROGRESS_STATE and \
+                   pkt[TCP].ack == seq_no + 1:
                     # The connection is established
-                    self.tcp_session.update(pkt[IP].src, 0, 0)
+                    self.tcp_session.update(
+                        pkt[IP].src, TCP_SESSION_INIT_OR_DONE_STATE, 0
+                    )
                     self.ip2hc.update_hc(pkt[IP].src, hop_count)
                     # SYN, SYN ACK ACK, total two times for ip_addr(src)
                     self.ip2hc.update_match_times(pkt[IP].src, 2)
@@ -149,15 +153,15 @@ class NetHCFController:
     def process_update_request(self):
         self.pull_switch_counters()
         # Switch state in terms of abnormal_counter in last period
-        if self.hcf_state.value == 0 and \
+        if self.hcf_state.value == HCF_LEARNING_STATE and \
            self.mismatch.value > self.learn_to_filter_thr:
-            self.hcf_state.value = 1
+            self.hcf_state.value = HCF_FILTERING_STATE
             self.switch.switch_to_filtering_state()
-        elif self.hcf_state.value == 1 and \
+        elif self.hcf_state.value == HCF_FILTERING_STATE and \
              self.mismatch.value < self.filter_to_learn_thr:
-            self.hcf_state.value = 0
+            self.hcf_state.value = HCF_LEARNING_STATE
             self.switch.switch_to_learning_state()
-        elif self.hcf_state.value == 0:
+        elif self.hcf_state.value == HCF_LEARNING_STATE:
             update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
             self.update_cache_into_switch(update_scheme)
         self.reset_period_counters()
@@ -187,9 +191,10 @@ class NetHCFController:
 
     def update_cache_into_switch(self, update_scheme):
         for cache_idx in update_scheme.keys():
-            entry_handle = update_scheme[cache_idx][0]
-            new_ip_addr = update_scheme[cache_idx][1]
-            hc_value = update_scheme[cache_idx][2]
+            entry_handle = \
+                    update_scheme[cache_idx][SCHEME_OLD_ENTRY_HANDLE_FALG]
+            new_ip_addr = update_scheme[cache_idx][SCHEME_NEW_IP_ADDR_FLAG]
+            hc_value = update_scheme[cache_idx][SCHEME_NEW_HOP_COUNT_FALG]
             if entry_handle != NOT_DELETE_HANDLE:
                 self.switch.delete_from_ip2hc_mat(entry_handle)
             entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)

@@ -184,8 +184,9 @@ class NetHCFController:
 
     def load_cache_into_switch(self):
         for idx in self.ip2hc.get_cached_index_set():
-            ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
-            entry_handle = self.switch.add_into_ip2hc_mat(ip_addr, idx)
+            ip_addr, prefix_len, hc_value = self.ip2hc.get_cached_info(idx)
+            entry_handle = \
+                    self.switch.add_into_ip2hc_mat(ip_addr, prefix_len, idx)
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(idx, entry_handle)
                 self.switch.update_hc_value(idx, hc_value)
@@ -201,12 +202,18 @@ class NetHCFController:
     def update_cache_into_switch(self, update_scheme):
         for cache_idx in update_scheme.keys():
             entry_handle = \
-                    update_scheme[cache_idx][SCHEME_OLD_ENTRY_HANDLE_FALG]
+                    update_scheme[cache_idx][SCHEME_OLD_ENTRY_HANDLE_FLAG]
             new_ip_addr = update_scheme[cache_idx][SCHEME_NEW_IP_ADDR_FLAG]
-            hc_value = update_scheme[cache_idx][SCHEME_NEW_HOP_COUNT_FALG]
+            new_prefix_len = \
+                    update_scheme[cache_idx][SCHEME_NEW_PREFIX_LEN_FLAG]
+            hc_value = update_scheme[cache_idx][SCHEME_NEW_HOP_COUNT_FLAG]
             if entry_handle != NOT_DELETE_HANDLE:
+                # The cache is full, replace with new item
                 self.switch.delete_from_ip2hc_mat(entry_handle)
-            entry_handle = self.switch.add_into_ip2hc_mat(new_ip_addr,cache_idx)
+            # The cache is not full, insert new item dirctly
+            entry_handle = self.switch.add_into_ip2hc_mat(
+                new_ip_addr, new_prefix_len, cache_idx
+            )
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
                 self.switch.update_hc_value(cache_idx, hc_value)
@@ -224,7 +231,7 @@ if __name__ == "__main__":
     default_hc_list = {
         0x0A00000B: 64, 0x0A00000C: 32, 0x0A00000D: 32, 0x0A00000E: 32,\
         0x0A00000F: 32, 0x0A000010: 32, 0x0A000011: 32, 0x0A000012: 32,\
-        0x0A000013: 32, 0x0A000014: 32
+        0x0A000013: 32, 0x0A000014: 64
     }
     controller = NetHCFController("s1-eth3", default_hc_list)
     # controller.run()

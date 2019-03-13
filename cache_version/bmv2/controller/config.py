@@ -48,23 +48,26 @@ TCP_SESSION_IN_PROGRESS_STATE = 1
 # ImpactHeap(IH) Item: [impact_factor, ip_addr]
 IMPACT_HEAP_IMPACT_FACTOR_FLAG = 0
 IMPACT_HEAP_IP_ADDR_FLAG = 1
-IMPACT_HEAP_PREFIX_LEN_FALG = 2
+IMPACT_HEAP_PREFIX_LEN_FLAG = 2
 
-# IP2HC table Item: [prefix_len, Hop-Count, total_matched, last_matched]
+# # IP2HC table Item: [prefix_len, Hop-Count, total_matched, last_matched]
+# IP2HC table Item: [Hop-Count, total_matched, last_matched]
 IP2HC_HIT_KEY = -1
-IP2HC_PREFIX_LEN_FLAG = 0
-IP2HC_HOP_COUNT_FLAG = 1
-IP2HC_TOTAL_MATCHED_FALG = 2
-IP2HC_LAST_MATCHED_FALG = 3
+# IP2HC_PREFIX_LEN_FLAG = 0
+IP2HC_HOP_COUNT_FLAG = 0
+IP2HC_TOTAL_MATCHED_FLAG = 1
+IP2HC_LAST_MATCHED_FLAG = 2
 
-# Cache Item: [ip_addr, entry_handle]
+# Cache Item: [ip_addr, prefix_len, entry_handle]
 CACHE_IP_ADDR_FLAG = 0
-CACHE_ENTRY_HANDLE_FLAG = 1
+CACHE_PREFIX_LEN_FLAG = 1
+CACHE_ENTRY_HANDLE_FLAG = 2
 
 # Update Scheme Structure: {cache_idx: (old_entry_handle, new_ip, new_hc)}
-SCHEME_OLD_ENTRY_HANDLE_FALG = 0
+SCHEME_OLD_ENTRY_HANDLE_FLAG = 0
 SCHEME_NEW_IP_ADDR_FLAG = 1
-SCHEME_NEW_HOP_COUNT_FALG = 2
+SCHEME_NEW_PREFIX_LEN_FLAG = 2
+SCHEME_NEW_HOP_COUNT_FLAG = 3
 
 BMV2_PATH = "/home/dracula/p4_environment/behavioral-model"
 TARGET_THRIFT_IP = 'localhost'

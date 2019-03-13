@@ -61,7 +61,7 @@ class ImpactHeap:
 
     def get_heap_index(self, ip_addr):
         for index, item in enumerate(self._heap):
-            prefix_len = item[IMPACT_HEAP_PREFIX_LEN_FALG]
+            prefix_len = item[IMPACT_HEAP_PREFIX_LEN_FLAG]
             mask = (2 ** prefix_len - 1) << (32 - prefix_len)
             if item[IMPACT_HEAP_IP_ADDR_FLAG] & mask == ip_addr & mask:
                 return index
@@ -72,6 +72,7 @@ class ImpactHeap:
             return -1
 
 class Cache:
+    # Cache Item: [ip_addr, prefix_len, entry_handle]
     def __init__(self, cache_size, mpmgr):
         self.cache_size = cache_size
         self._cache = mpmgr.list([[0, 0] for i in range(cache_size)])
@@ -155,13 +156,12 @@ class IP2HC:
                 "config.py and select from [2, 4, 8, 16]"
             )
         # A tree-like structure for IP2HC table
-        # IP2HC table item: [prefix_len, Hop-Count, total_matched, last_matched]
+        # IP2HC table item: [Hop-Count, total_matched, last_matched]
         self._ip2hc = mpmgr.dict()
         # key list of every IP2HC item
         self.key_list_set = mpmgr.list()
         # Init the Impact Heap of the IP2HC
         self.impact_heap = ImpactHeap(impact_factor_function, mpmgr)
-        # cache item: [ip_addr, entry_handle]
         self.cache = Cache(CACHE_SIZE, mpmgr)
         # print("Cache List Size: %d" % sys.getsizeof(self.cache))
         # cache update brought by IP2HC aggregating
@@ -175,7 +175,7 @@ class IP2HC:
             # Load into IP2HC
             self.add_into_ip2hc(ip_addr, 32, hc_value, cache_idx + 1)
             # Load into cache
-            self.cache.append([ip_addr, cache_idx])
+            self.cache.append([ip_addr, 32, cache_idx])
 
     def add_into_ip2hc(self, ip_addr, prefix_len, hc_value, spec_cache_num=0):
         mask = (1 << self.devide_bits) - 1
@@ -189,9 +189,7 @@ class IP2HC:
                 if i * self.devide_bits == prefix_len:
                     self.key_list_set.append(key_list)
                     key_list.append(IP2HC_HIT_KEY)
-                    set_mpmgr_dict(
-                        self._ip2hc, key_list, [prefix_len, hc_value, 0, 0]
-                    )
+                    set_mpmgr_dict(self._ip2hc, key_list, [hc_value, 0, 0])
                     key_list.pop()
                     if spec_cache_num > 0:
                         self.impact_heap.push(
@@ -214,9 +212,7 @@ class IP2HC:
                         # Last bit
                         self.key_list_set.append(key_list)
                         key_list.append(IP2HC_HIT_KEY)
-                        set_mpmgr_dict(
-                            self._ip2hc, key_list, [prefix_len, hc_value, 0, 0]
-                        )
+                        set_mpmgr_dict(self._ip2hc, key_list, [hc_value, 0, 0])
                         key_list.pop()
                         if spec_cache_num > 0:
                             self.impact_heap.push(
@@ -256,22 +252,18 @@ class IP2HC:
                 # Can be aggregated
                 hc_value = current_node[IP2HC_HIT_KEY][IP2HC_HOP_COUNT_FLAG]
                 new_total_matched = \
-                        current_node[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG] +\
-                        sibling_node[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG]
+                        current_node[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG] +\
+                        sibling_node[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG]
                 new_last_matched = \
-                        current_node[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG] + \
-                        sibling_node[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG]
-                new_prefix_len = \
-                        current_node[IP2HC_HIT_KEY][IP2HC_PREFIX_LEN_FLAG] - 1
-                aggregated_item = [
-                    new_prefix_len, hc_value,
-                    new_total_matched, new_last_matched
-                ]
+                        current_node[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG] + \
+                        sibling_node[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
+                aggregated_item = [hc_value,new_total_matched,new_last_matched]
                 key_list.append(IP2HC_HIT_KEY)
                 set_mpmgr_dict(self._ip2hc, key_list, aggregated_item, cover=True)
                 # Prepare for next iterate
                 key_list.pop()
                 self.count.value -= 1
+                prefix_len -= 1
                 aggregated_flag = True
             else:
                 break
@@ -281,11 +273,11 @@ class IP2HC:
             self.key_list_set.append(key_list)
             # Update Impact Heap
             self.cache_items_to_remove.extend(
-                self.impact_heap.remove(ip_addr, new_prefix_len)
+                self.impact_heap.remove(ip_addr, prefix_len)
             )
             self.impact_heap.push(
-                ip_addr & ((2**new_prefix_len - 1) << (32-new_prefix_len)),
-                new_total_matched, new_last_matched, new_prefix_len
+                ip_addr & ((2 ** prefix_len - 1) << (32 - prefix_len)),
+                new_total_matched, new_last_matched, prefix_len
             )
         return
 
@@ -337,8 +329,9 @@ class IP2HC:
                 if IP2HC_HIT_KEY in local_ip2hc:
                     # Prefix Length is i * self.devide_bits
                     key_list.append(IP2HC_HIT_KEY)
-                    key_list.append(1)
+                    key_list.append(IP2HC_HOP_COUNT_FLAG)
                     set_mpmgr_dict(self._ip2hc, key_list, hc_value)
+                    break
                 for j in range(self.devide_bits):
                     ip_addr_bit = (ip_addr_part >> (self.devide_bits-j-1)) & 1
                     key_list.append(ip_addr_bit)
@@ -346,16 +339,20 @@ class IP2HC:
                         local_ip2hc = local_ip2hc[ip_addr_bit]
                     else:
                         self.add_into_ip2hc(ip_addr, 32, hc_value)
+                        break
                     if IP2HC_HIT_KEY in local_ip2hc:
                         key_list.append(IP2HC_HIT_KEY)
-                        key_list.append(1)
+                        key_list.append(IP2HC_HOP_COUNT_FLAG)
                         set_mpmgr_dict(self._ip2hc, key_list, hc_value)
+                        break
             else:
                 key_list.append(ip_addr_part)
                 if ip_addr_part in local_ip2hc:
                     local_ip2hc = local_ip2hc[ip_addr_part]
                 else:
                     self.add_into_ip2hc(ip_addr, 32, hc_value)
+                    break
+        return
 
     def read_match_times(self, ip_addr):
         if type(ip_addr) == str:
@@ -370,23 +367,31 @@ class IP2HC:
                 if IP2HC_HIT_KEY in local_ip2hc:
                     # Prefix Length is i * self.devide_bits
                     ip2hc_item = local_ip2hc[IP2HC_HIT_KEY]
-                    return ip2hc_item[IP2HC_TOTAL_MATCHED_FALG], \
-                           ip2hc_item[IP2HC_LAST_MATCHED_FALG]
+                    return ip2hc_item[IP2HC_TOTAL_MATCHED_FLAG], \
+                           ip2hc_item[IP2HC_LAST_MATCHED_FLAG]
                 for j in range(self.devide_bits):
                     ip_addr_bit = (ip_addr_part >> (self.devide_bits-j-1)) & 1
                     if ip_addr_bit in local_ip2hc:
                         local_ip2hc = local_ip2hc[ip_addr_bit]
                     else:
+                        print(
+                            "Error: can't find info for this ip %d in IP2HC"\
+                            % ip_addr
+                        )
                         return 0, 0
                     if IP2HC_HIT_KEY in local_ip2hc:
                         ip2hc_item = local_ip2hc[IP2HC_HIT_KEY]
-                        return ip2hc_item[IP2HC_TOTAL_MATCHED_FALG], \
-                               ip2hc_item[IP2HC_LAST_MATCHED_FALG]
+                        return ip2hc_item[IP2HC_TOTAL_MATCHED_FLAG], \
+                               ip2hc_item[IP2HC_LAST_MATCHED_FLAG]
             else:
                 if ip_addr_part in local_ip2hc:
                     local_ip2hc = local_ip2hc[ip_addr_part]
                 else:
+                    print(
+                        "Error: can't find info for this ip %d in IP2HC"%ip_addr
+                    )
                     return 0, 0
+        print("Error: can't find info for this ip %d in IP2HC" % ip_addr)
         return 0, 0
 
     def update_match_times(self, ip_addr, times):
@@ -404,15 +409,15 @@ class IP2HC:
                     # Prefix Length is i * self.devide_bits
                     key_list.append(IP2HC_HIT_KEY)
                     current_total_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG]
                     current_last_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
                     current_total_matched += times
                     current_last_matched += times
-                    key_list.append(IP2HC_TOTAL_MATCHED_FALG)
+                    key_list.append(IP2HC_TOTAL_MATCHED_FLAG)
                     set_mpmgr_dict(self._ip2hc, key_list, current_total_matched)
                     key_list.pop()
-                    key_list.append(IP2HC_LAST_MATCHED_FALG)
+                    key_list.append(IP2HC_LAST_MATCHED_FLAG)
                     set_mpmgr_dict(self._ip2hc, key_list, current_last_matched)
                     key_list.pop()
                     self.impact_heap.update(
@@ -433,17 +438,17 @@ class IP2HC:
                     if IP2HC_HIT_KEY in local_ip2hc:
                         key_list.append(IP2HC_HIT_KEY)
                         current_total_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG]
                         current_last_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
                         current_total_matched += times
                         current_last_matched += times
-                        key_list.append(IP2HC_TOTAL_MATCHED_FALG)
+                        key_list.append(IP2HC_TOTAL_MATCHED_FLAG)
                         set_mpmgr_dict(
                             self._ip2hc, key_list, current_total_matched
                         )
                         key_list.pop()
-                        key_list.append(IP2HC_LAST_MATCHED_FALG)
+                        key_list.append(IP2HC_LAST_MATCHED_FLAG)
                         set_mpmgr_dict(
                             self._ip2hc, key_list, current_last_matched
                         )
@@ -480,15 +485,15 @@ class IP2HC:
                     # Prefix Length is i * self.devide_bits
                     key_list.append(IP2HC_HIT_KEY)
                     current_total_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG]
                     current_last_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
                     current_total_matched += times
                     current_last_matched += times
-                    key_list.append(IP2HC_TOTAL_MATCHED_FALG)
+                    key_list.append(IP2HC_TOTAL_MATCHED_FLAG)
                     set_mpmgr_dict(self._ip2hc, key_list, current_total_matched)
                     key_list.pop()
-                    key_list.append(IP2HC_LAST_MATCHED_FALG)
+                    key_list.append(IP2HC_LAST_MATCHED_FLAG)
                     set_mpmgr_dict(self._ip2hc, key_list, current_last_matched)
                     key_list.pop()
                     return 0
@@ -506,17 +511,17 @@ class IP2HC:
                     if IP2HC_HIT_KEY in local_ip2hc:
                         key_list.append(IP2HC_HIT_KEY)
                         current_total_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_TOTAL_MATCHED_FLAG]
                         current_last_matched = \
-                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FALG]
+                            local_ip2hc[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
                         current_total_matched += times
                         current_last_matched += times
-                        key_list.append(IP2HC_TOTAL_MATCHED_FALG)
+                        key_list.append(IP2HC_TOTAL_MATCHED_FLAG)
                         set_mpmgr_dict(
                             self._ip2hc, key_list, current_total_matched
                         )
                         key_list.pop()
-                        key_list.append(IP2HC_LAST_MATCHED_FALG)
+                        key_list.append(IP2HC_LAST_MATCHED_FLAG)
                         set_mpmgr_dict(
                             self._ip2hc, key_list, current_last_matched
                         )
@@ -541,9 +546,11 @@ class IP2HC:
         return self.cache.get_cached_index_set()
 
     def get_cached_info(self, cache_idx):
-        ip_addr = self.cache.get_cached_item(cache_idx)[CACHE_IP_ADDR_FLAG]
+        cache_item = self.cache.get_cached_item(cache_idx)
+        ip_addr = cache_item[CACHE_IP_ADDR_FLAG]
+        prefix_len = cache_item[CACHE_PREFIX_LEN_FLAG]
         hc_value = self.read_hc(ip_addr)
-        return ip_addr, hc_value
+        return ip_addr, prefix_len, hc_value 
 
     def update_cache(self, hits_bitmap):
         # Select count item to be replaced
@@ -568,14 +575,15 @@ class IP2HC:
                     self.impact_heap.push_direct(controller_item)
                 else:
                     ip_addr = controller_item[IMPACT_HEAP_IP_ADDR_FLAG]
+                    prefix_len = controller_item[IMPACT_HEAP_PREFIX_LEN_FLAG]
                     cache_idx = self.cache.get_next_index()
                     hc_value = self.read_hc(ip_addr)
-                    self.cache.append([ip_addr, cache_idx])
+                    self.cache.append([ip_addr, prefix_len, cache_idx])
                     controller_item[IMPACT_HEAP_IMPACT_FACTOR_FLAG]=cache_idx+1
                     hits_bitmap[cache_idx] = 1
                     self.impact_heap.push_direct(controller_item)
                     update_scheme[cache_idx] = \
-                            (NOT_DELETE_HANDLE, ip_addr, hc_value)
+                            (NOT_DELETE_HANDLE, ip_addr, prefix_len, hc_value)
         else:
             for i in range(count - left_cache_size):
                 controller_list_to_replace.append(self.impact_heap.pop())
@@ -587,14 +595,15 @@ class IP2HC:
                     self.impact_heap.push_direct(controller_item)
                 else:
                     ip_addr = controller_item[IMPACT_HEAP_IP_ADDR_FLAG]
+                    prefix_len = controller_item[IMPACT_HEAP_PREFIX_LEN_FLAG]
                     cache_idx = self.cache.get_next_index()
                     hc_value = self.read_hc(ip_addr)
-                    self.cache.append([ip_addr, cache_idx])
+                    self.cache.append([ip_addr, prefix_len, cache_idx])
                     controller_item[IMPACT_HEAP_IMPACT_FACTOR_FLAG]=cache_idx+1
                     hits_bitmap[cache_idx] = 1
                     self.impact_heap.push_direct(controller_item)
                     update_scheme[cache_idx] = \
-                            (NOT_DELETE_HANDLE, ip_addr, hc_value)
+                            (NOT_DELETE_HANDLE, ip_addr, prefix_len, hc_value)
             for i in range(count - left_cache_size):
                 controller_item = controller_list_to_replace[i]
                 if controller_item[IMPACT_HEAP_IMPACT_FACTOR_FLAG] >= 0:
@@ -608,6 +617,7 @@ class IP2HC:
                 old_ip_total_matched, old_ip_last_matched \
                         = self.read_match_times(old_ip_addr)
                 new_ip_addr = controller_item[IMPACT_HEAP_IP_ADDR_FLAG]
+                new_prefix_len = controller_item[IMPACT_HEAP_PREFIX_LEN_FLAG]
                 if old_ip_addr == new_ip_addr:
                     # Already in cache
                     self.impact_heap.push_direct(controller_item)
@@ -620,7 +630,7 @@ class IP2HC:
                 controller_item[IMPACT_HEAP_IMPACT_FACTOR_FLAG] = cache_idx + 1
                 self.impact_heap.push_direct(controller_item)
                 update_scheme[cache_idx] = \
-                        (entry_handle, new_ip_addr, new_ip_hc_value)
+                    (entry_handle, new_ip_addr, new_prefix_len, new_ip_hc_value)
                 # update_scheme[cache_idx] = \
                     # (old_ip_addr, new_ip_addr, self.hc_value[new_ip_ip2hc_idx])
                 # Set the impact factor of those from cache to normal
@@ -639,7 +649,7 @@ class IP2HC:
 
     def reset_last_matched(self):
         for key_list in self.key_list_set:
-            key_list.append(IP2HC_LAST_MATCHED_FALG)
+            key_list.append(IP2HC_LAST_MATCHED_FLAG)
             set_mpmgr_dict(self._ip2hc, key_list, 0)
             key_list.pop()
 

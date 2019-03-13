@@ -210,7 +210,7 @@ action table_hit(index) {
 // table_hit is executed, otherwise action table_miss is executed
 table ip_to_hc_table {
     reads {
-        meta.ip_for_match : exact;
+        meta.ip_for_match : ternary;
     }
     actions {
         table_miss;

@@ -157,7 +157,7 @@ class NetHCFSwitchBMv2:
                 print("Debug: hits counter is resetted.")
 
     # Add entry into IP2HC Match-Action-Table
-    def add_into_ip2hc_mat(self, ip_addr, cache_idx):
+    def add_into_ip2hc_mat(self, ip_addr, prefix_len, cache_idx):
         if type(ip_addr) != str:
             ip_addr_str = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
             ip_addr_hex = struct.pack('I', socket.htonl(ip_addr))
@@ -165,15 +165,18 @@ class NetHCFSwitchBMv2:
             ip_addr_str = ip_addr
             ip_addr = struct.unpack('!I', socket.inet_aton(ip_addr))[0]
             ip_addr_hex = struct.pack('I', socket.htonl(ip_addr))
+        mask = (2 ** prefix_len - 1) << (32 - prefix_len)
+        mask_str = socket.inet_ntoa(struct.pack('I',socket.htonl(mask)))
+        mask_hex = struct.pack('I', socket.htonl(mask))
         if DEBUG_OPTION:
             print(
-                "Debug: adding entry of %s into IP2HC-MAT with cache_idx %d..."
-                % (ip_addr_str, cache_idx)
+                "Debug: adding entry of %s/%s into IP2HC-MAT at cache_idx %d..."
+                % (ip_addr_str, mask_str, cache_idx)
             )
         match_key = [
             runtime_CLI.BmMatchParam(
-                type=runtime_CLI.BmMatchParamType.EXACT,
-                exact=runtime_CLI.BmMatchParamExact(ip_addr_hex)
+                type=runtime_CLI.BmMatchParamType.TERNARY,
+                ternary=runtime_CLI.BmMatchParamTernary(ip_addr_hex, mask_hex)
             )
         ]
         action_data = [struct.pack('B', cache_idx)]

@@ -162,6 +162,7 @@ class NetHCFController:
             self.hcf_state.value = HCF_LEARNING_STATE
             self.switch.switch_to_learning_state()
         elif self.hcf_state.value == HCF_LEARNING_STATE:
+            self.clear_up_cache()
             update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
             self.update_cache_into_switch(update_scheme)
         self.reset_period_counters()
@@ -171,9 +172,9 @@ class NetHCFController:
         self.miss.value = self.switch.read_miss_counter()
         self.mismatch.value += self.switch.read_mismatch_counter()
         self.hits_bitmap = self.switch.read_hits_bitmap()
-        # for idx in range(self.ip2hc.get_cached_size()):
+        # for idx in self.ip2hc.get_cached_index_set():
             # self.ip2hc.sync_match_times(idx, self.switch.read_hits_counter(idx))
-        for idx in range(CACHE_SIZE):
+        for idx in self.ip2hc.get_cached_index_set():
             if self.hits_bitmap[idx] == 0:
                 self.ip2hc.sync_match_times(
                     idx, self.switch.read_hits_counter(idx)
@@ -182,12 +183,20 @@ class NetHCFController:
                 self.ip2hc.sync_match_times(idx, BITMAP_ONE_TO_TIMES)
 
     def load_cache_into_switch(self):
-        for idx in range(self.ip2hc.get_cached_size()):
+        for idx in self.ip2hc.get_cached_index_set():
             ip_addr, hc_value = self.ip2hc.get_cached_info(idx)
             entry_handle = self.switch.add_into_ip2hc_mat(ip_addr, idx)
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(idx, entry_handle)
                 self.switch.update_hc_value(idx, hc_value)
+
+    def clear_up_cache(self):
+        outdated_cache_items = self.ip2hc.remove_outdated_cache()
+        for cache_idx in outdated_cache_items:
+            self.hits_bitmap[cache_idx] = 0
+            entry_handle = \
+              self.ip2hc.remove_cached_item(cache_idx)[CACHE_ENTRY_HANDLE_FLAG]
+            self.switch.delete_from_ip2hc_mat(entry_handle)
 
     def update_cache_into_switch(self, update_scheme):
         for cache_idx in update_scheme.keys():

@@ -14,8 +14,8 @@ class ImpactHeap:
         self._heap = mpmgr.list()
         self.impact_factor_function = impact_factor_function
 
-    def push(self, ip_addr, total_matched, last_matched, \
-             prefix_len, spec_impact_factor=0):
+    def push(self, ip_addr, prefix_len, \
+             total_matched, last_matched, spec_impact_factor=0):
         if spec_impact_factor > 0:
             impact_factor = spec_impact_factor
         else:
@@ -193,10 +193,10 @@ class IP2HC:
                     key_list.pop()
                     if spec_cache_num > 0:
                         self.impact_heap.push(
-                            ip_addr, 0, 0, prefix_len, spec_cache_num
+                            ip_addr, prefix_len, 0, 0, spec_cache_num
                         )
                     else:
-                        self.impact_heap.push(ip_addr, 0, 0, prefix_len)
+                        self.impact_heap.push(ip_addr, prefix_len, 0, 0)
                     self.count.value += 1
                     break
                 for j in range(self.devide_bits):
@@ -216,10 +216,10 @@ class IP2HC:
                         key_list.pop()
                         if spec_cache_num > 0:
                             self.impact_heap.push(
-                                ip_addr, 0, 0, prefix_len, spec_cache_num
+                                ip_addr, prefix_len, 0, 0, spec_cache_num
                             )
                         else:
-                            self.impact_heap.push(ip_addr, 0, 0, prefix_len)
+                            self.impact_heap.push(ip_addr, prefix_len, 0, 0)
                         self.count.value += 1
                         break
             else:
@@ -231,8 +231,14 @@ class IP2HC:
                     set_mpmgr_dict(self._ip2hc, key_list, tmp_dict)
                     local_ip2hc = tmp_dict
         # Check whether IP2HC can be aggregated
+        self.aggregate(key_list, ip_addr, prefix_len)
+        return
+
+    def aggregate(self, key_list, ip_addr, prefix_len):
+        # Aggregate from the position which given key_list corresponds to
+        # if IP2HC can be aggregated
         aggregated_flag = False
-        while len(key_list) > devide_steps - 1:
+        while len(key_list) > int(32 / self.devide_bits) - 1:
             current_node = get_mpmgr_dict(self._ip2hc, key_list)
             if IP2HC_HIT_KEY not in current_node:
                 # Impossible branch
@@ -241,11 +247,15 @@ class IP2HC:
             current_bit = key_list.pop()
             parent_node = get_mpmgr_dict(self._ip2hc, key_list)
             if current_bit ^ 1 not in parent_node:
+                # This node has not sibling node
                 # Can't continue to aggregate
+                key_list.append(current_bit)
                 break
             sibling_node = parent_node[current_bit ^ 1]
             if IP2HC_HIT_KEY not in sibling_node:
+                # Sibling node has not item
                 # Can't continue to aggregate
+                key_list.append(current_bit)
                 break
             if current_node[IP2HC_HIT_KEY][IP2HC_HOP_COUNT_FLAG] == \
                sibling_node[IP2HC_HIT_KEY][IP2HC_HOP_COUNT_FLAG]:
@@ -259,9 +269,11 @@ class IP2HC:
                         sibling_node[IP2HC_HIT_KEY][IP2HC_LAST_MATCHED_FLAG]
                 aggregated_item = [hc_value,new_total_matched,new_last_matched]
                 key_list.append(IP2HC_HIT_KEY)
+                # Aggregate in IP2HC
                 set_mpmgr_dict(self._ip2hc, key_list, aggregated_item, cover=True)
                 # Prepare for next iterate
                 key_list.pop()
+                # The number of IP2HC items reduce one
                 self.count.value -= 1
                 prefix_len -= 1
                 aggregated_flag = True
@@ -277,7 +289,7 @@ class IP2HC:
             )
             self.impact_heap.push(
                 ip_addr & ((2 ** prefix_len - 1) << (32 - prefix_len)),
-                new_total_matched, new_last_matched, prefix_len
+                prefix_len, new_total_matched, new_last_matched
             )
         return
 
@@ -328,10 +340,15 @@ class IP2HC:
                 # Last level
                 if IP2HC_HIT_KEY in local_ip2hc:
                     # Prefix Length is i * self.devide_bits
-                    key_list.append(IP2HC_HIT_KEY)
-                    key_list.append(IP2HC_HOP_COUNT_FLAG)
-                    set_mpmgr_dict(self._ip2hc, key_list, hc_value)
-                    break
+                    ip2hc_item = local_ip2hc[IP2HC_HIT_KEY]
+                    if ip2hc_item[IP2HC_HOP_COUNT_FLAG] != hc_value:
+                        # The IP2HC should be disaggregated from here
+                        self.disaggregate(
+                            ip_addr, i * self.devide_bits,
+                            key_list, ip2hc_item, hc_value
+                        )
+                    else:
+                        break
                 for j in range(self.devide_bits):
                     ip_addr_bit = (ip_addr_part >> (self.devide_bits-j-1)) & 1
                     key_list.append(ip_addr_bit)
@@ -341,9 +358,23 @@ class IP2HC:
                         self.add_into_ip2hc(ip_addr, 32, hc_value)
                         break
                     if IP2HC_HIT_KEY in local_ip2hc:
-                        key_list.append(IP2HC_HIT_KEY)
-                        key_list.append(IP2HC_HOP_COUNT_FLAG)
-                        set_mpmgr_dict(self._ip2hc, key_list, hc_value)
+                        ip2hc_item = local_ip2hc[IP2HC_HIT_KEY]
+                        if ip2hc_item[IP2HC_HOP_COUNT_FLAG] != hc_value:
+                            if j < self.devide_bits - 1:
+                                # The IP2HC should be disaggregated from here
+                                self.disaggregate(
+                                    ip_addr, i * self.devide_bits + j + 1,
+                                    key_list, ip2hc_item, hc_value
+                                )
+                            else:
+                                # The prefix len of this item is 32
+                                # IP2HC may be can be aggregated
+                                key_list.append(IP2HC_HIT_KEY)
+                                key_list.append(IP2HC_HOP_COUNT_FLAG)
+                                set_mpmgr_dict(self._ip2hc, key_list, hc_value)
+                                key_list.pop()
+                                key_list.pop()
+                                self.aggregate(key_list, ip_addr, 32)
                         break
             else:
                 key_list.append(ip_addr_part)
@@ -353,6 +384,55 @@ class IP2HC:
                     self.add_into_ip2hc(ip_addr, 32, hc_value)
                     break
         return
+
+    def disaggregate(self, ip_addr, prefix_len, key_list, \
+                     origin_ip2hc_item, new_hc_value):
+        if prefix_len >= 32:
+            print("Error: Wrong parameter for disaggregate!")
+        # Remove corresponding item in cache heap
+        self.cache_items_to_remove.extend(
+            self.impact_heap.remove(ip_addr, prefix_len)
+        )
+        self.count.value -= 1
+        # Remove corresponding item in key_list_set
+        self.remove_from_key_list_set(key_list)
+        origin_hc_value = origin_ip2hc_item[IP2HC_HOP_COUNT_FLAG]
+        total_matched = origin_ip2hc_item[IP2HC_TOTAL_MATCHED_FLAG]
+        last_matched = origin_ip2hc_item[IP2HC_LAST_MATCHED_FLAG]
+        while prefix_len < 32:
+            ip_addr_bit = (ip_addr >> (31 - prefix_len)) & 1
+            total_matched = int(total_matched / 2)
+            last_matched = int(last_matched / 2)
+            new_level = {}
+            # The value to the key(ip_addr_bit) will be filled next iteration
+            new_level[ip_addr_bit] = {}
+            # Disaggregate
+            new_level[ip_addr_bit ^ 1] = \
+                {IP2HC_HIT_KEY: [origin_hc_value, total_matched, last_matched]}
+            # Update IP2HC
+            set_mpmgr_dict(self._ip2hc, key_list, new_level)
+            # Update Impact Heap
+            prefix_len += 1
+            vice_ip_addr = ip_addr ^ (1 << (32 - prefix_len))
+            self.impact_heap.push(
+                vice_ip_addr & ((2 ** prefix_len - 1) << (32 - prefix_len)),
+                prefix_len, total_matched, last_matched
+            )
+            # Update key_list set
+            key_list.append(ip_addr_bit ^ 1)
+            self.key_list_set.append(key_list)
+            key_list.pop()
+            # Update the number of items in IP2HC
+            self.count.value += 1
+            key_list.append(ip_addr_bit)
+        # Final leaf node with new Hop Count
+        key_list.append(IP2HC_HIT_KEY)
+        updated_item = [new_hc_value, total_matched, last_matched]
+        # Update IP2HC
+        set_mpmgr_dict(self._ip2hc, key_list, updated_item)
+        # Update Impact Heap
+        self.impact_heap.push(ip_addr, prefix_len, total_matched, last_matched)
+        self.count.value += 1
 
     def read_match_times(self, ip_addr):
         if type(ip_addr) == str:
@@ -649,8 +729,10 @@ class IP2HC:
 
     def reset_last_matched(self):
         for key_list in self.key_list_set:
+            key_list.append(IP2HC_HIT_KEY)
             key_list.append(IP2HC_LAST_MATCHED_FLAG)
             set_mpmgr_dict(self._ip2hc, key_list, 0)
+            key_list.pop()
             key_list.pop()
 
     def update_entry_handle_in_cache(self, cache_idx, entry_handle):

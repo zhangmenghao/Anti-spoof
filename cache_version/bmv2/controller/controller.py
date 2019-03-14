@@ -60,7 +60,7 @@ class NetHCFController:
                     # This is a write back request
                     # A SYN ACK ACK packet with replaced dst address
                     self.ip2hc.update_hc(
-                        pkt[IP].src, self.compute_hc(pkt[IP].ttl)
+                        pkt[IP].src, self.compute_hc(pkt[IP].ttl)[0]
                     )
                 elif pkt[IP].proto == TYPE_NETHCF:
                     # This is a cache update request
@@ -231,7 +231,8 @@ if __name__ == "__main__":
     default_hc_list = {
         0x0A00000B: 64, 0x0A00000C: 32, 0x0A00000D: 32, 0x0A00000E: 32,\
         0x0A00000F: 32, 0x0A000010: 32, 0x0A000011: 32, 0x0A000012: 32,\
-        0x0A000013: 32, 0x0A000014: 64
+        0x0A000013: 32, 0x0A000014: 32, 0x0A000015: 32, 0x0A000016: 32,\
+        0x0A000017: 32
     }
     controller = NetHCFController("s1-eth3", default_hc_list)
     # controller.run()

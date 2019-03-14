@@ -17,7 +17,7 @@
 #define TCP_SESSION_STATE_SIZE 1
 #define IP_TO_HC_INDEX_BITS 23
 /* #define IP_TO_HC_TABLE_SIZE 65536 // 2^16 */
-#define IP_TO_HC_TABLE_SIZE 10 // 2^16
+#define IP_TO_HC_TABLE_SIZE 13 // 2^16
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8

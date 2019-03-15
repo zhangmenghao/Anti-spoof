@@ -25,6 +25,8 @@ class NetHCFSwitchBMv2:
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
         self.hcf_state = switch_config["hcf_state"]
+        self.dirty_flag = switch_config["dirty_flag"]
+        self.dirty_bitmap = switch_config["dirty_bitmap"]
         self.error_hint_str = (
             "Please check whether the switch "
             "is well configured and running."
@@ -295,6 +297,28 @@ class NetHCFSwitchBMv2:
         else:
             if DEBUG_OPTION:
                 print("Debug: the bitmap for hits counter is resetted.")
+
+    def reset_dirty_ip2hc(self):
+        if DEBUG_OPTION:
+            print("Debug: resetting the dirty flag...")
+        try:
+            self.reset_register(self.dirty_flag)
+        except:
+            print("Error: Can't reset the dirty flag!\n")
+            print(self.error_hint_str)
+        else:
+            if DEBUG_OPTION:
+                print("Debug: the dirty flag is resetted.")
+        if DEBUG_OPTION:
+            print("Debug: resetting the dirty bitmap...")
+        try:
+            self.reset_register(self.dirty_bitmap)
+        except:
+            print("Error: Can't reset the dirty bitmap!\n")
+            print(self.error_hint_str)
+        else:
+            if DEBUG_OPTION:
+                print("Debug: the dirty bitmap is resetted.")
 
 class NetHCFSwitchBMv2CMD:
     def __init__(self, switch_config, target_switch, target_code, target_port):

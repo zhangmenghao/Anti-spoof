@@ -35,7 +35,8 @@ header_type meta_t {
         ip2hc_hop_count : HOP_COUNT_SIZE; // Hop Count in ip2hc table
         hit_count_value : HIT_COUNT_SIZE; // Hit Count in hit_count table
         tcp_session_map_index : TCP_SESSION_MAP_BITS;
-        tcp_session_state : TCP_SESSION_STATE_SIZE; // 1:received SYN-ACK 0: exist or none
+        tcp_session_state : TCP_SESSION_STATE_SIZE;
+        // 1:received SYN-ACK 0: exist or none
         tcp_session_seq : 32; // sequence number of SYN-ACK packet
         ip_to_hc_index : IP_TO_HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
@@ -45,6 +46,8 @@ header_type meta_t {
         ip_for_match : 32; // IP address for searching the ip2hc table
         ip2hc_table_hit : 1; // 0: Not Hit 1 : Hit
         update_ip2hc : 1;
+        ip2hc_dirty_flag : 1;
+        ip2hc_dirty_hc: 1;
     }
 }
 
@@ -132,6 +135,8 @@ table hc_compute_table_copy {
 
 action inspect_hc() {
     register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
+    register_read(meta.ip2hc_dirty_flag, dirty_flag, meta.ip_to_hc_index);
+    register_read(meta.ip2hc_dirty_hc, dirty_bitmap, meta.packet_hop_count);
 }
 
 // Get the origin hop count of this source IP
@@ -174,11 +179,28 @@ table hit_bitmap_set_table {
     actions { set_hit_bitmap; }
 }
 
+// The flag bit to identify whether the iterm is dirty
+register dirty_flag {
+    width : 1;
+    instance_count : IP_TO_HC_TABLE_SIZE;
+}
+
+register dirty_bitmap {
+    width : 1;
+    instance_count : 255;
+}
+
+action set_entry_to_dirty() {
+    register_write(dirty_flag, meta.ip_to_hc_index, 1);
+    register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
+    register_write(dirty_bitmap, meta.ip2hc_hop_count, 1);
+}
+
 action get_src_ip() {
     modify_field(meta.ip_for_match, ipv4.srcAddr);
 }
 
-action get_des_ip() {
+action get_dst_ip() {
     modify_field(meta.ip_for_match, ipv4.dstAddr);
 }
 
@@ -192,7 +214,7 @@ table get_ip_table {
     }
     actions {
         get_src_ip;
-        get_des_ip;
+        get_dst_ip;
     }
 }
 
@@ -345,6 +367,9 @@ table session_init_table {
 }
 
 action complete_session() {
+    // Set IP2HC table entry to dirty
+    set_entry_to_dirty();
+    // Update
     register_write(session_state, meta.tcp_session_map_index, 0);
     register_write(hop_count, meta.ip_to_hc_index, meta.packet_hop_count);
     tag_normal();
@@ -496,14 +521,13 @@ control ingress {
                 }
                 else if (meta.tcp_session_state == 0) {
                     if (meta.is_inspected == 1) {
-                        // Compute packet's hop count and refer to its origin hop count
+                        // Compute packet's hop count
+                        // and refer to its origin hop count
                         apply(hc_compute_table);
                         apply(hc_inspect_table);
-                        if (meta.packet_hop_count != meta.ip2hc_hop_count) {
-                            // It's abnormal
-                            apply(hc_abnormal_table);
-                        }
-                        else {
+                        if ((meta.packet_hop_count == meta.ip2hc_hop_count) or
+                            (meta.ip2hc_dirty_flag == 1 and
+                             meta.ip2hc_dirty_hc == 1)) {
                             // It is normal
                             // Only update hit count when the packet is legal
                             apply(hit_count_update_table);
@@ -511,6 +535,10 @@ control ingress {
                                 apply(hit_bitmap_set_table);
                             }
                             apply(packet_normal_table);
+                        }
+                        else {
+                            // It's abnormal
+                            apply(hc_abnormal_table);
                         }
                     }
                     else {

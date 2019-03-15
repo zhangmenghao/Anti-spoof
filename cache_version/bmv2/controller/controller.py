@@ -225,6 +225,7 @@ class NetHCFController:
         self.switch.reset_mismatch_counter()
         self.switch.reset_hits_counter()
         self.switch.reset_hits_bitmap()
+        self.switch.reset_dirty_ip2hc()
         self.ip2hc.reset_last_matched()
 
 if __name__ == "__main__":

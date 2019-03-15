@@ -89,7 +89,11 @@ NETHCF_SWITCH_CONFIG = {
     # IP2HC Match-Action-Table action name in p4
     "read_hc_function": "table_hit",
     # State register name in p4
-    "hcf_state": "current_state"
+    "hcf_state": "current_state",
+    # Dirty Flag register name in p4
+    "dirty_flag": "dirty_flag",
+    # Dirty Bitmap register name in p4
+    "dirty_bitmap": "dirty_bitmap"
 }
 
 DEBUG_OPTION = True

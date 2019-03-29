@@ -1,0 +1,23 @@
+402a403,416
+> static unsigned char hop_count_calculate(unsigned char final_ttl)
+> {
+> 	if (final_ttl <= 32)
+> 		return 32 - final_ttl;
+> 	else if (final_ttl <= 64)
+> 		return 64 - final_ttl;
+> 	else if (final_ttl <= 128)
+> 		return 128 - final_ttl;
+> 	else
+> 		return 255 - final_ttl;
+> 
+> 	return 255;
+> }
+> 
+410a425
+> 	static unsigned char ip_to_hc[65536];
+475a491,495
+> 	}
+> 
+> 	if (iph->protocol == 6) {
+> 		if (hop_count_calculate(iph->ttl) != ip_to_hc[(iph->saddr & 0xffff0000) >> 16])
+> 			goto drop;

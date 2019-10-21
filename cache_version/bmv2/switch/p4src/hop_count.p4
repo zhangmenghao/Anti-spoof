@@ -15,9 +15,9 @@
 #define TCP_SESSION_MAP_BITS 8
 #define TCP_SESSION_MAP_SIZE 256 // 2^8
 #define TCP_SESSION_STATE_SIZE 1
-#define IP_TO_HC_INDEX_BITS 23
-/* #define IP_TO_HC_TABLE_SIZE 65536 // 2^16 */
-#define IP_TO_HC_TABLE_SIZE 13 // 2^16
+#define IP2HC_INDEX_BITS 23
+/* #define IP2HC_TABLE_SIZE 65536 // 2^16 */
+#define IP2HC_TABLE_SIZE 13 // 2^16
 #define SAMPLE_VALUE_BITS 3
 #define PACKET_TAG_BITS 1
 #define HIT_BITS 8
@@ -38,7 +38,7 @@ header_type meta_t {
         tcp_session_state : TCP_SESSION_STATE_SIZE;
         // 1:received SYN-ACK 0: exist or none
         tcp_session_seq : 32; // sequence number of SYN-ACK packet
-        ip_to_hc_index : IP_TO_HC_INDEX_BITS;
+        ip2hc_index : IP2HC_INDEX_BITS;
         sample_value : SAMPLE_VALUE_BITS; // Used for sample packets
         hcf_state : 1; // 0: Learning 1: Filtering
         packet_tag : PACKET_TAG_BITS; // 0: Normal 1: Abnormal
@@ -122,44 +122,33 @@ table hc_compute_table {
     max_size : HC_COMPUTE_TABLE_SIZE;
 }
 
-// Another for different pipeline
-table hc_compute_table_copy {
-    reads {
-        ipv4.ttl : range;
-    }
-    actions {
-        compute_hc;
-    }
-    max_size: HC_COMPUTE_TABLE_SIZE;
-}
-
-action inspect_hc() {
-    register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
-    register_read(meta.ip2hc_dirty_flag, dirty_flag, meta.ip_to_hc_index);
+action inspect_hc(initial_ttl) {
+    subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
+    register_read(meta.ip2hc_dirty_flag, dirty_flag, meta.ip2hc_index);
     register_read(meta.ip2hc_dirty_hc, dirty_bitmap, meta.packet_hop_count);
 }
 
-// Get the origin hop count of this source IP
+// Except for HC computing, check whether the ip2hc item is dirty
 table hc_inspect_table {
-    actions { inspect_hc; }
-}
-
-// Save the hop count value of each source ip address
-register hop_count {
-    width : HOP_COUNT_SIZE;
-    instance_count : IP_TO_HC_TABLE_SIZE;
+    reads {
+        ipv4.ttl : range;
+    }
+    actions { 
+        inspect_hc;
+    }
+    max_size : HC_COMPUTE_TABLE_SIZE;
 }
 
 // Save the hit count value of each entry in ip2hc table
 register hit_count {
     width : HIT_COUNT_SIZE;
-    instance_count : IP_TO_HC_TABLE_SIZE;
+    instance_count : IP2HC_TABLE_SIZE;
 }
 
 action update_hit_count() {
-    register_read(meta.hit_count_value, hit_count, meta.ip_to_hc_index);
+    register_read(meta.hit_count_value, hit_count, meta.ip2hc_index);
     add_to_field(meta.hit_count_value, 1);
-    register_write(hit_count, meta.ip_to_hc_index, meta.hit_count_value);
+    register_write(hit_count, meta.ip2hc_index, meta.hit_count_value);
 }
 
 table hit_count_update_table {
@@ -168,11 +157,11 @@ table hit_count_update_table {
 
 register hit_bitmap {
     width : 1;
-    instance_count : IP_TO_HC_TABLE_SIZE;
+    instance_count : IP2HC_TABLE_SIZE;
 }
 
 action set_hit_bitmap() {
-    register_write(hit_bitmap, meta.ip_to_hc_index, 1);
+    register_write(hit_bitmap, meta.ip2hc_index, 1);
 }
 
 table hit_bitmap_set_table {
@@ -182,7 +171,7 @@ table hit_bitmap_set_table {
 // The flag bit to identify whether the iterm is dirty
 register dirty_flag {
     width : 1;
-    instance_count : IP_TO_HC_TABLE_SIZE;
+    instance_count : IP2HC_TABLE_SIZE;
 }
 
 register dirty_bitmap {
@@ -191,9 +180,9 @@ register dirty_bitmap {
 }
 
 action set_entry_to_dirty() {
-    register_write(dirty_flag, meta.ip_to_hc_index, 1);
-    register_read(meta.ip2hc_hop_count, hop_count, meta.ip_to_hc_index);
-    register_write(dirty_bitmap, meta.ip2hc_hop_count, 1);
+    register_write(dirty_flag, meta.ip2hc_index, 1);
+    // Store the new hop count into the dirty bitmap
+    register_write(dirty_bitmap, meta.packet_hop_count, 1);
 }
 
 action get_src_ip() {
@@ -223,14 +212,15 @@ action table_miss() {
     modify_field(meta.ip2hc_table_hit, 0);
 }
 
-action table_hit(index) {
-    modify_field(meta.ip_to_hc_index, index);
+action table_hit(index, hop_count) {
+    modify_field(meta.ip2hc_index, index);
+    modify_field(meta.ip2hc_hop_count, hop_count);
     modify_field(meta.ip2hc_table_hit, 1);
 }
 
 // The ip2hc table, if the current packet hits the ip2hc table, action
 // table_hit is executed, otherwise action table_miss is executed
-table ip_to_hc_table {
+table ip2hc_table {
     reads {
         meta.ip_for_match : ternary;
     }
@@ -238,7 +228,7 @@ table ip_to_hc_table {
         table_miss;
         table_hit;
     }
-    max_size : IP_TO_HC_TABLE_SIZE;
+    max_size : IP2HC_TABLE_SIZE;
 }
 
 action learning_abnormal() {
@@ -366,13 +356,22 @@ table session_init_table {
     }
 }
 
+// When a session is complete on the switch, the switch will send
+// a packet to controller to update ip2hc table on the controller
+action update_controller() {
+    //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
+    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
+    modify_field(meta.update_ip2hc, 1);
+    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+}
+
 action complete_session() {
     // Set IP2HC table entry to dirty
     set_entry_to_dirty();
     // Update
     register_write(session_state, meta.tcp_session_map_index, 0);
-    register_write(hop_count, meta.ip_to_hc_index, meta.packet_hop_count);
     tag_normal();
+    update_controller();
 }
 
 // Establish the connection, and update IP2HC
@@ -452,7 +451,7 @@ table modify_field_and_truncate_table {
     }
 }
 
-// The packets that missed ip_to_hc_table, deciding whether
+// The packets that missed ip2hc_table, deciding whether
 // to forward them by current switch state
 table packet_miss_table {
     reads {
@@ -461,21 +460,6 @@ table packet_miss_table {
     actions {
         tag_normal;
         tag_abnormal;
-    }
-}
-
-action session_complete_update() {
-    //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
-    //modify_field(standard_metadata.egress_spec, CONTROLLER_PORT);
-    modify_field(meta.update_ip2hc, 1);
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
-}
-
-// When a session is complete on the switch, the switch will send
-// a packet to controller to update ip2hc table on the controller
-table session_complete_update_table {
-    actions {
-        session_complete_update;
     }
 }
 
@@ -489,10 +473,10 @@ control ingress {
         apply(hcf_check_table);
         // Get session state
         apply(session_check_table);
-        // Get ip address used to match ip_to_hc_table
+        // Get ip address used to match ip2hc_table
         apply(get_ip_table);
-        // Match ip_to_hc_table
-        apply(ip_to_hc_table);
+        // Match ip2hc_table
+        apply(ip2hc_table);
         if (tcp.syn == 1 and tcp.ack == 1) {
             // For syn/ack packets
             if (meta.ip2hc_table_hit == 0)
@@ -510,9 +494,8 @@ control ingress {
                     if (tcp.ackNo == meta.tcp_session_seq + 1) {
                         // Legal connection, computes the hop count value and
                         // updates the ip2hc table on the switch and controller
-                        apply(hc_compute_table_copy);
+                        apply(hc_compute_table);
                         apply(session_complete_table);
-                        apply(session_complete_update_table);
                     }
                     else {
                         // Illegal connection attempt
@@ -523,7 +506,6 @@ control ingress {
                     if (meta.is_inspected == 1) {
                         // Compute packet's hop count
                         // and refer to its origin hop count
-                        apply(hc_compute_table);
                         apply(hc_inspect_table);
                         if ((meta.packet_hop_count == meta.ip2hc_hop_count) or
                             (meta.ip2hc_dirty_flag == 1 and
@@ -548,8 +530,7 @@ control ingress {
                     }
                 }
             }
-            else if (meta.ip2hc_table_hit == 0)
-            {
+            else if (meta.ip2hc_table_hit == 0) {
                 // Missed packets
                 apply(miss_packet_clone_table_copy);
                 apply(packet_miss_table);

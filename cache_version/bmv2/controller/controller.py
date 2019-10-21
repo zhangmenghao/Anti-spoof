@@ -185,11 +185,23 @@ class NetHCFController:
     def load_cache_into_switch(self):
         for idx in self.ip2hc.get_cached_index_set():
             ip_addr, prefix_len, hc_value = self.ip2hc.get_cached_info(idx)
-            entry_handle = \
-                    self.switch.add_into_ip2hc_mat(ip_addr, prefix_len, idx)
+            entry_handle = self.switch.add_into_ip2hc_mat(
+                ip_addr, prefix_len, hc_value, idx
+            )
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(idx, entry_handle)
-                self.switch.update_hc_value(idx, hc_value)
+
+    def update_new_hc_in_cache(self):
+        outdated_cache_items = self.ip2hc.update_outdated_cache()
+        for (cache_idx, hc_value) in outdated_cache_items:
+            (ip_addr, prefix_len, old_entry_handle) = \
+                    self.cache.get_cached_item(cache_idx)
+            self.switch.delete_from_ip2hc_mat(old_entry_handle)
+            entry_handle = self.switch.add_into_ip2hc_mat(
+                ip_addr, prefix_len, hc_value, cache_idx
+            )
+            if new_entry_handle != -1:
+                self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
 
     def clear_up_cache(self):
         outdated_cache_items = self.ip2hc.remove_outdated_cache()
@@ -212,11 +224,10 @@ class NetHCFController:
                 self.switch.delete_from_ip2hc_mat(entry_handle)
             # The cache is not full, insert new item dirctly
             entry_handle = self.switch.add_into_ip2hc_mat(
-                new_ip_addr, new_prefix_len, cache_idx
+                new_ip_addr, new_prefix_len, hc_value, cache_idx
             )
             if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
-                self.switch.update_hc_value(cache_idx, hc_value)
 
     def reset_period_counters(self):
         self.miss.value = 0

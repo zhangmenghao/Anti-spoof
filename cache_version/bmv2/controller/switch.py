@@ -21,7 +21,6 @@ class NetHCFSwitchBMv2:
         self.mismatch_counter = switch_config["mismatch_counter"]
         self.ip2hc_counter = switch_config["ip2hc_counter"]
         self.ip2hc_counter_bitmap = switch_config["ip2hc_counter_bitmap"]
-        self.ip2hc_register = switch_config["ip2hc_register"]
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
         self.hcf_state = switch_config["hcf_state"]
@@ -159,7 +158,7 @@ class NetHCFSwitchBMv2:
                 print("Debug: hits counter is resetted.")
 
     # Add entry into IP2HC Match-Action-Table
-    def add_into_ip2hc_mat(self, ip_addr, prefix_len, cache_idx):
+    def add_into_ip2hc_mat(self, ip_addr, prefix_len, hc_value, cache_idx):
         if type(ip_addr) != str:
             ip_addr_str = socket.inet_ntoa(struct.pack('I',socket.htonl(ip_addr)))
             ip_addr_hex = struct.pack('I', socket.htonl(ip_addr))
@@ -172,8 +171,8 @@ class NetHCFSwitchBMv2:
         mask_hex = struct.pack('I', socket.htonl(mask))
         if DEBUG_OPTION:
             print(
-                "Debug: adding entry of %s/%s into IP2HC-MAT at cache_idx %d..."
-                % (ip_addr_str, mask_str, cache_idx)
+                "Debug: adding entry(%s/%s, %d) to IP2HC-MAT at cache-idx %d..."
+                % (ip_addr_str, mask_str, hc_value, cache_idx)
             )
         match_key = [
             runtime_CLI.BmMatchParam(
@@ -181,7 +180,7 @@ class NetHCFSwitchBMv2:
                 ternary=runtime_CLI.BmMatchParamTernary(ip_addr_hex, mask_hex)
             )
         ]
-        action_data = [struct.pack('B', cache_idx)]
+        action_data = [struct.pack('B', cache_idx), struct.pack('B', hc_value)]
         options = runtime_CLI.BmAddEntryOptions()
         try:
             entry_handle = self.add_mat_entry(
@@ -198,21 +197,6 @@ class NetHCFSwitchBMv2:
                     "Debug: entry is added with entry handle %d" % entry_handle
                 )
             return entry_handle
-
-    def update_hc_value(self, cache_idx, hc_value):
-        if DEBUG_OPTION:
-            print(
-                "Debug: Updating item with cache index %d to %d..."
-                % (cache_idx, hc_value)
-            )
-        try:
-            self.write_register(self.ip2hc_register, cache_idx, hc_value)
-        except:
-            print("Error: Can't write into hc value register!\n")
-            print(self.error_hint_str)
-        else:
-            if DEBUG_OPTION:
-                print("Debug: hop count register is updated")
 
     def delete_from_ip2hc_mat(self, entry_handle):
         if DEBUG_OPTION:
@@ -500,13 +484,17 @@ class NetHCFSwitchBMv2CMD:
     def update_hc_value(self, cache_idx, hc_value):
         if DEBUG_OPTION:
             print(
-                "Debug: Updating item with cache index %d to %d ..."
+                "Debug: Updating item with cache index %d to %d..."
                 % (cache_idx, hc_value)
             )
-        result = os.popen(self.update_hc_value_cmd(cache_idx, hc_value)).read()
-        if "Done" not in result:
+        try:
+            self.write_register(self.ip2hc_register, cache_idx, hc_value)
+        except:
             print("Error: Can't write into hc value register!\n")
             print(self.error_hint_str)
+        else:
+            if DEBUG_OPTION:
+                print("Debug: hop count register is updated")
 
     # Add entry into IP2HC Match-Action-Table
     def delete_from_ip2hc_mat_cmd(self, entry_handle):

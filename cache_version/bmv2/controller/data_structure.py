@@ -75,7 +75,7 @@ class ImpactHeap:
     def get_cached_index(self, ip_addr):
         heap_idx = self.get_heap_index(ip_addr)
         heap_entry = self._heap[heap_idx]
-        return heap_entry[IMPACT_HEAP_IMPACT_FACTOR_FLAG]
+        return heap_entry[IMPACT_HEAP_IMPACT_FACTOR_FLAG] - 1
 
 class Cache:
     # Cache Item: [ip_addr, prefix_len, entry_handle]
@@ -644,8 +644,9 @@ class IP2HC:
         cache_item = self.cache.get_cached_item(cache_idx)
         ip_addr = cache_item[CACHE_IP_ADDR_FLAG]
         prefix_len = cache_item[CACHE_PREFIX_LEN_FLAG]
+        entry_handle = cache_item[CACHE_ENTRY_HANDLE_FLAG]
         hc_value = self.read_hc(ip_addr)
-        return ip_addr, prefix_len, hc_value 
+        return ip_addr, prefix_len, hc_value, entry_handle 
 
     def update_cache(self, hits_bitmap):
         # Select count item to be replaced

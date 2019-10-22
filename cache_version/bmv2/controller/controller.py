@@ -162,6 +162,7 @@ class NetHCFController:
             self.hcf_state.value = HCF_LEARNING_STATE
             self.switch.switch_to_learning_state()
         elif self.hcf_state.value == HCF_LEARNING_STATE:
+            self.update_new_hc_in_cache()
             self.clear_up_cache()
             update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
             self.update_cache_into_switch(update_scheme)
@@ -184,7 +185,7 @@ class NetHCFController:
 
     def load_cache_into_switch(self):
         for idx in self.ip2hc.get_cached_index_set():
-            ip_addr, prefix_len, hc_value = self.ip2hc.get_cached_info(idx)
+            ip_addr, prefix_len, hc_value = self.ip2hc.get_cached_info(idx)[:3]
             entry_handle = self.switch.add_into_ip2hc_mat(
                 ip_addr, prefix_len, hc_value, idx
             )
@@ -194,13 +195,13 @@ class NetHCFController:
     def update_new_hc_in_cache(self):
         outdated_cache_items = self.ip2hc.update_outdated_cache()
         for (cache_idx, hc_value) in outdated_cache_items:
-            (ip_addr, prefix_len, old_entry_handle) = \
-                    self.cache.get_cached_item(cache_idx)
+            (ip_addr, prefix_len, old_hc_value, old_entry_handle) = \
+                    self.ip2hc.get_cached_info(cache_idx)
             self.switch.delete_from_ip2hc_mat(old_entry_handle)
             entry_handle = self.switch.add_into_ip2hc_mat(
                 ip_addr, prefix_len, hc_value, cache_idx
             )
-            if new_entry_handle != -1:
+            if entry_handle != -1:
                 self.ip2hc.update_entry_handle_in_cache(cache_idx, entry_handle)
 
     def clear_up_cache(self):
@@ -241,7 +242,7 @@ class NetHCFController:
 
 if __name__ == "__main__":
     default_hc_list = {
-        0x0A00000B: 64, 0x0A00000C: 32, 0x0A00000D: 32, 0x0A00000E: 32,\
+        0x0A00000B: 65, 0x0A00000C: 32, 0x0A00000D: 32, 0x0A00000E: 32,\
         0x0A00000F: 32, 0x0A000010: 32, 0x0A000011: 32, 0x0A000012: 32,\
         0x0A000013: 32, 0x0A000014: 32, 0x0A000015: 32, 0x0A000016: 32,\
         0x0A000017: 32

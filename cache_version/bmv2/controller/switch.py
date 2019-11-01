@@ -23,7 +23,7 @@ class NetHCFSwitchBMv2:
         self.ip2hc_counter_bitmap = switch_config["ip2hc_counter_bitmap"]
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
-        self.hcf_state = switch_config["hcf_state"]
+        self.nethcf_state = switch_config["nethcf_state"]
         self.dirty_flag = switch_config["dirty_flag"]
         self.dirty_bitmap = switch_config["dirty_bitmap"]
         self.error_hint_str = (
@@ -213,28 +213,28 @@ class NetHCFSwitchBMv2:
             if DEBUG_OPTION:
                 print("Debug: the entry is deleted")
 
-    def read_hcf_state(self):
+    def read_nethcf_state(self):
         if DEBUG_OPTION:
             print("Debug: reading hcf state in switch...")
-        # Extract hcf_state from result
+        # Extract nethcf_state from result
         try:
-            hcf_state = self.read_register(self.hcf_state, 0)
+            nethcf_state = self.read_register(self.nethcf_state, 0)
         except:
-            print("Error: Can't read register hcf_state!\n")
+            print("Error: Can't read register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
         else:
             if DEBUG_OPTION:
-                print("Debug: readed hcf state is %d" % hcf_state)
-            return hcf_state
+                print("Debug: readed hcf state is %d" % nethcf_state)
+            return nethcf_state
 
     def switch_to_learning_state(self):
         if DEBUG_OPTION:
             print("Debug: switching hcf state to learning...")
         try:
-            self.write_register(self.hcf_state, 0, 0)
+            self.write_register(self.nethcf_state, 0, 0)
         except:
-            print("Error: Can't write register hcf_state!\n")
+            print("Error: Can't write register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
         else:
@@ -246,9 +246,9 @@ class NetHCFSwitchBMv2:
         if DEBUG_OPTION:
             print("Debug: switching hcf state to filtering...")
         try:
-            self.write_register(self.hcf_state, 0, 1)
+            self.write_register(self.nethcf_state, 0, 1)
         except:
-            print("Error: Can't write register hcf_state!\n")
+            print("Error: Can't write register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
         else:
@@ -312,7 +312,7 @@ class NetHCFSwitchBMv2CMD:
         self.ip2hc_register = switch_config["ip2hc_register"]
         self.ip2hc_mat = switch_config["ip2hc_mat"]
         self.read_hc_function = switch_config["read_hc_function"]
-        self.hcf_state = switch_config["hcf_state"]
+        self.nethcf_state = switch_config["nethcf_state"]
         self.target_switch = target_switch
         self.target_code = target_code
         self.target_port = target_port
@@ -524,35 +524,35 @@ class NetHCFSwitchBMv2CMD:
                self.target_switch, self.target_code, self.target_port)
         )
 
-    def read_hcf_state_cmd(self):
+    def read_nethcf_state_cmd(self):
         return (
             '''echo "register_read %s 0" | %s %s %d'''
-            % (self.hcf_state,
+            % (self.nethcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
-    def read_hcf_state(self):
+    def read_nethcf_state(self):
         if DEBUG_OPTION:
             print("Debug: reading hcf state in switch...")
-        result = os.popen(self.read_hcf_state_cmd()).read()
-        # Extract hcf_state from result
+        result = os.popen(self.read_nethcf_state_cmd()).read()
+        # Extract nethcf_state from result
         try:
-            hcf_state_str = \
-                    result[result.index("%s[0]=" % self.hcf_state):].split()[1]
-            hcf_state = int(hcf_state_str)
+            nethcf_state_str = \
+                result[result.index("%s[0]=" % self.nethcf_state):].split()[1]
+            nethcf_state = int(nethcf_state_str)
         except:
-            print("Error: Can't read register hcf_state!\n")
+            print("Error: Can't read register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
         else:
             if DEBUG_OPTION:
-                print("Debug: readed hcf state is %d" % hcf_state)
-            return hcf_state
+                print("Debug: readed hcf state is %d" % nethcf_state)
+            return nethcf_state
 
     def switch_to_learning_state_cmd(self):
         return (
             '''echo "register_write %s 0 0" | %s %s %d'''
-            % (self.hcf_state,
+            % (self.nethcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -563,14 +563,14 @@ class NetHCFSwitchBMv2CMD:
         if "Done" in result:
             return 0
         else:
-            print("Error: Can't write register hcf_state!\n")
+            print("Error: Can't write register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
 
     def switch_to_filtering_state_cmd(self):
         return (
             '''echo "register_write %s 0 1" | %s %s %d'''
-            % (self.hcf_state,
+            % (self.nethcf_state,
                self.target_switch, self.target_code, self.target_port)
         )
 
@@ -581,7 +581,7 @@ class NetHCFSwitchBMv2CMD:
         if "Done" in result:
             return 0
         else:
-            print("Error: Can't write register hcf_state!\n")
+            print("Error: Can't write register nethcf_state!\n")
             print(self.error_hint_str)
             return -1
 

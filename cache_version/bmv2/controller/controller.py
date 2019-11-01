@@ -20,13 +20,13 @@ class NetHCFController:
         self.tcp_session = TCP_Session()
         self.miss = self.mpmgr.Value('I', 0)
         self.mismatch = self.mpmgr.Value('I', 0)
-        self.hcf_state = self.mpmgr.Value('B', 0) # 0: learning 1: filtering
+        self.nethcf_state = self.mpmgr.Value('B', 0) # 0: learning 1: filtering
         self.hits_bitmap = []
         self.learn_to_filter_thr = LEARN_TO_FILTER_THR
         self.filter_to_learn_thr = FILTER_TO_LEARN_THR
 
     def initialize(self):
-        self.hcf_state.value = HCF_LEARNING_STATE
+        self.nethcf_state.value = HCF_LEARNING_STATE
         self.switch.switch_to_learning_state()
         self.load_cache_into_switch()
         self.reset_period_counters()
@@ -110,7 +110,7 @@ class NetHCFController:
                 )
             else:
                 self.ip2hc.update_match_times(pkt[IP].src, 1)
-            if self.hcf_state.value == HCF_FILTERING_STATE:
+            if self.nethcf_state.value == HCF_FILTERING_STATE:
                 sendp(pkt, iface=self.iface)
         else:
             # The HC may not be computed,
@@ -152,20 +152,19 @@ class NetHCFController:
 
     def process_update_request(self):
         self.pull_switch_counters()
+        self.update_new_hc_in_cache()
+        self.clear_up_cache()
+        update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
+        self.update_cache_into_switch(update_scheme)
         # Switch state in terms of abnormal_counter in last period
-        if self.hcf_state.value == HCF_LEARNING_STATE and \
+        if self.nethcf_state.value == HCF_LEARNING_STATE and \
            self.mismatch.value > self.learn_to_filter_thr:
-            self.hcf_state.value = HCF_FILTERING_STATE
+            self.nethcf_state.value = HCF_FILTERING_STATE
             self.switch.switch_to_filtering_state()
-        elif self.hcf_state.value == HCF_FILTERING_STATE and \
+        elif self.nethcf_state.value == HCF_FILTERING_STATE and \
              self.mismatch.value < self.filter_to_learn_thr:
-            self.hcf_state.value = HCF_LEARNING_STATE
+            self.nethcf_state.value = HCF_LEARNING_STATE
             self.switch.switch_to_learning_state()
-        elif self.hcf_state.value == HCF_LEARNING_STATE:
-            self.update_new_hc_in_cache()
-            self.clear_up_cache()
-            update_scheme = self.ip2hc.update_cache(self.hits_bitmap)
-            self.update_cache_into_switch(update_scheme)
         self.reset_period_counters()
 
     # Assume controller is running on the switch

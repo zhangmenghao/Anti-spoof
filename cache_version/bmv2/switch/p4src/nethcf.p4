@@ -10,20 +10,25 @@
 
 #define HOP_COUNT_WIDTH 8
 #define IP2HC_COUNTER_WIDTH 8
-#define HC_COMPUTE_TABLE_SIZE 8
 #define TCP_SESSION_INDEX_WIDTH 8
 #define TCP_SESSION_TABLE_SIZE 256 // 2^8
 #define TCP_SESSION_STATE_WIDTH 1
 #define SESSION_MONITOR_RESULT_WIDTH 2
+#define TEMPORARY_BITMAP_WIDTH 32
+#define TEMPORARY_BITMAP_INDEX_WIDTH 4
 #define IP2HC_INDEX_WIDTH 23
-/* #define IP2HC_TABLE_SIZE 65536 // 2^16 */
-#define IP2HC_TABLE_SIZE 13 // 2^16
 #define PACKET_TAG_WIDTH 1
-#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
-#define PACKET_TRUNCATE_LENGTH 54
+
+#define HC_COMPUTE_TABLE_SIZE 8
+/* #define IP2HC_TABLE_SIZE 65536 // 2^16 */
+#define IP2HC_TABLE_SIZE 13
+#define TEMPORARY_BITMAP_SIZE 16
+#define FORWARD_TABLE_SIZE 10
+
 #define CLONE_SPEC_VALUE 250
 #define CONTROLLER_IP_ADDRESS 0xC0A83865 //192.168.56.101
-#define FORWARD_TABLE_SIZE 10
+#define CONTROLLER_PORT 3 // Maybe this parameter can be stored in a register
+#define PACKET_TRUNCATE_LENGTH 54
 #define LEARNING_STATE 0
 #define FILTERING_STATE 1
 #define ABNORMAL_FLAG 1
@@ -47,13 +52,16 @@ header_type meta_t {
         // Hit Count in ip2hc_counter table
         tcp_session_index : TCP_SESSION_INDEX_WIDTH;
         tcp_session_state : TCP_SESSION_STATE_WIDTH;
-        session_monitor_result : SESSION_MONITOR_RESULT_WIDTH;
         // 1:received SYN-ACK 0: exist or none
-        tcp_session_seq : 32; // sequence number of SYN-ACK packet
+        session_monitor_result : SESSION_MONITOR_RESULT_WIDTH;
         ip2hc_index : IP2HC_INDEX_WIDTH;
+        temporary_bitarray : TEMPORARY_BITMAP_WIDTH;
+        hop_count_bitarray : TEMPORARY_BITMAP_WIDTH;
+        temporary_bitmap_index : TEMPORARY_BITMAP_INDEX_WIDTH;
+        tcp_session_seq : 32; // sequence number of SYN-ACK packet
         nethcf_state : 1; // 0: Learning 1: Filtering
         packet_tag : PACKET_TAG_WIDTH; // 0: Normal 1: Abnormal
-        is_inspected : 1; // 0: Not Inspected 1: Inspected
+        nethcf_enable_flag : 1; // 0: Not Inspected 1: Inspected
         ip_for_match : 32; // IP address for searching the ip2hc table
         ip2hc_hit_flag : 1; // 0: Not Hit 1 : Hit
         update_ip2hc_flag : 1; // Whether need to update ip2hc in cache
@@ -84,22 +92,10 @@ register ip2hc_counter {
     instance_count : IP2HC_TABLE_SIZE;
 }
 
-// Bitarray used to identify whether the cached entry is hot
-register report_bitarray {
-    width : 1;
-    instance_count : IP2HC_TABLE_SIZE;
-}
-
 // The flag bit array of ip2hc to identify whether the ip2hc iterm is dirty
 register ip2hc_valid_flag {
     width : 1;
     instance_count : IP2HC_TABLE_SIZE;
-}
-
-// Temporary bitmap for storing  updated hop count value
-register temporary_bitmap {
-    width : 1;
-    instance_count : 255;
 }
 
 // Store session state for concurrent tcp connections
@@ -112,6 +108,18 @@ register session_state {
 register session_seq {
     width : 32;
     instance_count : TCP_SESSION_TABLE_SIZE;
+}
+
+// Temporary bitmap for storing  updated hop count value
+register temporary_bitmap {
+    width : TEMPORARY_BITMAP_WIDTH;
+    instance_count : TEMPORARY_BITMAP_SIZE;
+}
+
+// Bitarray used to identify whether the cached entry is hot
+register report_bitarray {
+    width : 1;
+    instance_count : IP2HC_TABLE_SIZE;
 }
 
 // The number of abnormal packet per period
@@ -160,8 +168,8 @@ table nethcf_enable_table {
     max_size : 2;
 }
 
-action enable_nethcf(is_inspected) {
-    modify_field(meta.is_inspected, is_inspected);
+action enable_nethcf(nethcf_enable_flag) {
+    modify_field(meta.nethcf_enable_flag, nethcf_enable_flag);
 }
 
 // Get the IP address used to match ip2hc_table
@@ -333,7 +341,40 @@ action update_controller() {
 action set_entry_to_dirty() {
     register_write(ip2hc_valid_flag, meta.ip2hc_index, 1);
     // Store the new hop count into the dirty bitmap
-    register_write(temporary_bitmap, meta.packet_hop_count, 1);
+    write_to_temporary_bitmap();
+}
+
+action write_to_temporary_bitmap() {
+    // Compute the index value (row number) of temporary bitmap
+    modify_field_with_hash_based_offset(
+        meta.temporary_bitmap_index, 0,
+        temporary_bitmap_index_hash, TEMPORARY_BITMAP_SIZE
+    );
+    // Read the row (bitarray) from the temporary bitmap
+    register_read(
+        meta.temporary_bitarray, temporary_bitmap, meta.temporary_bitmap_index
+    );
+    // Compute the corresponding bitarray according to new hop count of packets
+    shift_left(meta.hop_count_bitarray, 1, meta.packet_hop_count);
+    // Compute the new row
+    bit_or(
+        meta.temporary_bitarray,
+        meta.temporary_bitarray, meta.hop_count_bitarray
+    );
+    // Write the new row back to temporary bitmap
+    register_write(
+        temporary_bitmap, meta.temporary_bitmap_index, meta.temporary_bitarray
+    );
+}
+
+field_list_calculation temporary_bitmap_index_hash {
+    input { temporary_bitmap_index_hash_fields; }
+    algorithm : crc16;
+    output_width : TEMPORARY_BITMAP_INDEX_WIDTH;
+}
+
+field_list temporary_bitmap_index_hash_fields {
+    meta.ip_for_match;
 }
 
 // Except for HC computing, check whether the ip2hc item is dirty
@@ -350,7 +391,23 @@ table hc_inspect_table {
 action inspect_hc(initial_ttl) {
     subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
     register_read(meta.ip2hc_valid_flag, ip2hc_valid_flag, meta.ip2hc_index);
-    register_read(meta.dirty_hc_hit_flag, temporary_bitmap, meta.packet_hop_count);
+    read_from_temporary_bitmap();
+}
+
+action read_from_temporary_bitmap() {
+    // Compute the index value (row number) of temporary bitmap
+    modify_field_with_hash_based_offset(
+        meta.temporary_bitmap_index, 0,
+        temporary_bitmap_index_hash, TEMPORARY_BITMAP_SIZE
+    );
+    // Read the row (bitarray) from the temporary bitmap
+    register_read(
+        meta.temporary_bitarray, temporary_bitmap, meta.temporary_bitmap_index
+    );
+    shift_right(
+        meta.temporary_bitarray, meta.temporary_bitarray, meta.packet_hop_count
+    );
+    bit_and(meta.dirty_hc_hit_flag, meta.temporary_bitarray, 1);
 }
 
 // Update ip2hc_counter
@@ -492,7 +549,7 @@ control ingress {
     apply(tag_packet_normal_table);
     // Check whether NetHCF is enabled
     apply(nethcf_enable_table);
-    if (meta.is_inspected == 1) {
+    if (meta.nethcf_enable_flag == 1) {
         // Get ip address used to match the IP2HC mapping table
         apply(nethcf_prepare_table);
         // Match the IP2HC mapping table

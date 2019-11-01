@@ -21,15 +21,9 @@ table_add hc_compute_table compute_hc 65->128 => 128 0
 table_add hc_compute_table compute_hc 129->255 => 255 0
 table_set_default session_complete_table complete_session
 table_set_default hc_update_table update_hc
-table_set_default hc_inspect_table inspect_hc 255
+table_set_default dirty_inspect_table inspect_dirty
 table_set_default ip2hc_counter_update_table update_ip2hc_counter
 table_set_default report_bitarray_set_table set_report_bitarray
-table_add hc_inspect_table inspect_hc 0->29 => 30 0
-table_add hc_inspect_table inspect_hc 30->31 => 32 0
-table_add hc_inspect_table inspect_hc 32->59 => 60 0
-table_add hc_inspect_table inspect_hc 60->64 => 64 0
-table_add hc_inspect_table inspect_hc 65->128 => 128 0
-table_add hc_inspect_table inspect_hc 129->255 => 255 0
 table_set_default process_mismatch_at_learning_table process_mismatch_at_learning
 table_set_default process_mismatch_at_filtering_table process_mismatch_at_filtering
 table_set_default process_miss_at_learning_table process_miss_at_learning

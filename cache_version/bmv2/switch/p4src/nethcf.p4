@@ -378,17 +378,14 @@ field_list temporary_bitmap_index_hash_fields {
 }
 
 // Except for HC computing, check whether the ip2hc item is dirty
-table hc_inspect_table {
-    reads {
-        ipv4.ttl : range;
-    }
+table dirty_inspect_table {
     actions { 
-        inspect_hc;
+        inspect_dirty;
     }
-    max_size : HC_COMPUTE_TABLE_SIZE;
+    max_size : 1;
 }
 
-action inspect_hc(initial_ttl) {
+action inspect_dirty(initial_ttl) {
     subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
     register_read(meta.ip2hc_valid_flag, ip2hc_valid_flag, meta.ip2hc_index);
     read_from_temporary_bitmap();
@@ -554,48 +551,55 @@ control ingress {
         apply(nethcf_prepare_table);
         // Match the IP2HC mapping table
         apply(ip2hc_table);
+        apply(hc_compute_table);
         if (meta.ip2hc_hit_flag == 1) {
             // IP is cached in IP2HC
-            apply(session_check_table);
-            apply(session_monitor_table);
-            if (meta.session_monitor_result == SESSION_MONITOR_INIT) {
-                // Received SYN/ACK packet, need to init TCP session
-                apply(session_init_table);
-            }
-            else if (meta.session_monitor_result == SESSION_MONITOR_UPDATE) {
-                // Legal connection established, compute the hop count value and
-                // updates the ip2hc table on the switch and controller
-                apply(hc_compute_table);
-                apply(session_complete_table);
-                if (meta.packet_hop_count != meta.ip2hc_hop_count) {
+            if (meta.ip2hc_hop_count != meta.packet_hop_count) {
+                apply(session_check_table);
+                apply(session_monitor_table);
+                if (meta.session_monitor_result == SESSION_MONITOR_INIT) {
+                    // Received SYN/ACK packet, need to init TCP session
+                    apply(session_init_table);
+                }
+                else if (meta.session_monitor_result == SESSION_MONITOR_UPDATE) {
+                    // Legal connection established, compute the hop count value and
+                    // updates the ip2hc table on the switch and controller
+                    apply(session_complete_table);
                     apply(hc_update_table);
                 }
-            }
-            else if (meta.session_monitor_result == SESSION_MONITOR_ABNORMAL) {
-                // Illegal connection attempt
-                apply(tag_packet_abnormal_table);
-            }
-            else {
-                // Packets pass TCP session monitoring, compute packet's hop
-                // count and refer to its original hop count
-                apply(hc_inspect_table);
-                if ((meta.packet_hop_count == meta.ip2hc_hop_count) or
-                   ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1)) {
-                    // It is normal
-                    // Only update hit count when the packet is legal
-                    apply(ip2hc_counter_update_table);
-                    if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
-                        apply(report_bitarray_set_table);
-                    }
+                else if (meta.session_monitor_result == SESSION_MONITOR_ABNORMAL) {
+                    // Illegal connection attempt
+                    apply(tag_packet_abnormal_table);
                 }
                 else {
-                    // Suspicious packets with mismatched hop count value
-                    if (meta.nethcf_state == LEARNING_STATE) {
-                        apply(process_mismatch_at_learning_table);
+                    // Packets pass TCP session monitoring, compute packet's hop
+                    // count and refer to its original hop count
+                    apply(dirty_inspect_table);
+                    if ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1) {
+                        // It is normal
+                        // Only update hit count when the packet is legal
+                        apply(ip2hc_counter_update_table);
+                        if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
+                            apply(report_bitarray_set_table);
+                        }
                     }
                     else {
-                        apply(process_mismatch_at_filtering_table);
+                        // Suspicious packets with mismatched hop count value
+                        if (meta.nethcf_state == LEARNING_STATE) {
+                            apply(process_mismatch_at_learning_table);
+                        }
+                        else {
+                            apply(process_mismatch_at_filtering_table);
+                        }
                     }
+                }
+            }
+            else {
+                // It is normal
+                // Only update hit count when the packet is legal
+                apply(ip2hc_counter_update_table);
+                if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
+                    apply(report_bitarray_set_table);
                 }
             }
         }

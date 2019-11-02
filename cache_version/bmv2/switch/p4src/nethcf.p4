@@ -385,8 +385,7 @@ table dirty_inspect_table {
     max_size : 1;
 }
 
-action inspect_dirty(initial_ttl) {
-    subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
+action inspect_dirty() {
     register_read(meta.ip2hc_valid_flag, ip2hc_valid_flag, meta.ip2hc_index);
     read_from_temporary_bitmap();
 }

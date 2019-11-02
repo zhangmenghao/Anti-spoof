@@ -66,7 +66,7 @@ header_type meta_t {
         ip2hc_hit_flag : 1; // 0: Not Hit 1 : Hit
         update_ip2hc_flag : 1; // Whether need to update ip2hc in cache
         ip2hc_valid_flag : 1; // Whether corresponding IP2HC item is dirty
-        dirty_hc_hit_flag: 1; 
+        dirty_hc_hit_flag : 1;
         // Whether the packet hop count exist in temporary bitmap
         src_dst_ip : 32; // Used to compute tcp session index
         src_dst_port : 16; // Used to compute tcp session index
@@ -221,6 +221,21 @@ action table_hit(index, hop_count) {
     modify_field(meta.ip2hc_hit_flag, 1);
 }
 
+// According to final TTL, select initial TTL and compute hop count
+table hc_compute_table {
+    reads {
+        ipv4.ttl : range;
+    }
+    actions {
+        compute_hc;
+    }
+    max_size : HC_COMPUTE_TABLE_SIZE;
+}
+
+action compute_hc(initial_ttl) {
+    subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
+}
+
 // Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
 table session_check_table {
@@ -291,21 +306,6 @@ table session_init_table {
 action init_session() {
     register_write(session_state, meta.tcp_session_index, 1);
     register_write(session_seq, meta.tcp_session_index, tcp.seqNo);
-}
-
-// According to final TTL, select initial TTL and compute hop count
-table hc_compute_table {
-    reads {
-        ipv4.ttl : range;
-    }
-    actions {
-        compute_hc;
-    }
-    max_size : HC_COMPUTE_TABLE_SIZE;
-}
-
-action compute_hc(initial_ttl) {
-    subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
 }
 
 // Establish the connection, and update IP2HC
@@ -379,7 +379,7 @@ field_list temporary_bitmap_index_hash_fields {
 
 // Except for HC computing, check whether the ip2hc item is dirty
 table dirty_inspect_table {
-    actions { 
+    actions {
         inspect_dirty;
     }
     max_size : 1;
@@ -551,10 +551,16 @@ control ingress {
         apply(nethcf_prepare_table);
         // Match the IP2HC mapping table
         apply(ip2hc_table);
-        apply(hc_compute_table);
         if (meta.ip2hc_hit_flag == 1) {
             // IP is cached in IP2HC
-            if (meta.ip2hc_hop_count != meta.packet_hop_count) {
+            apply(hc_compute_table);
+            if (meta.ip2hc_hop_count == meta.packet_hop_count) {
+                // It is normal
+                // Only update hit count when the hop count is correct
+                apply(ip2hc_counter_update_table);
+            }
+            else {
+                // Operate tcp session monitoring
                 apply(session_check_table);
                 apply(session_monitor_table);
                 if (meta.session_monitor_result == SESSION_MONITOR_INIT) {
@@ -576,12 +582,8 @@ control ingress {
                     // count and refer to its original hop count
                     apply(dirty_inspect_table);
                     if ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1) {
-                        // It is normal
-                        // Only update hit count when the packet is legal
+                        // Only update hit count when the hop count is correct
                         apply(ip2hc_counter_update_table);
-                        if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
-                            apply(report_bitarray_set_table);
-                        }
                     }
                     else {
                         // Suspicious packets with mismatched hop count value
@@ -594,13 +596,9 @@ control ingress {
                     }
                 }
             }
-            else {
-                // It is normal
-                // Only update hit count when the packet is legal
-                apply(ip2hc_counter_update_table);
-                if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
-                    apply(report_bitarray_set_table);
-                }
+            // Hot ip2hc entry process
+            if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
+                apply(report_bitarray_set_table);
             }
         }
         else {

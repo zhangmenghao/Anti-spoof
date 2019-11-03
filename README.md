@@ -1,16 +1,23 @@
 # NetHCF: Enabling Line-rate and Adaptive Spoofed IP Traffic Filtering
 This is a introduction to our NetHCF project.
+
 ## Overview
 We propose NetHCF, a line-rate in-network spoofed traffic filtering system. 
-To fit the classic Hop-Count Filtering (HCF) scheme into memory-limited and computation-restrictive switching ASICs, we decouple the existing HCF into two complementary parts, and design several effective mechanisms to make NetHCF adapt to end-to-end routing changes, IP popularity varieties, and network activity dynamics.
+To fit the classic Hop-Count Filtering (HCF) scheme into memory-limited and computation-restrictive switching ASICs, we decouple the existing HCF into two complementary parts, aggregating the IP-to-Hop-Count (IP2HC) mapping table for efficient memory usage, and design several effective mechanisms to make NetHCF adapt to end-to-end routing changes, IP popularity changezs, and network activity dynamics.
 
-We implement NetHCF on both software simulator (BMv2) and realistic physical hardware (Tofino Switch) of programmable switching ASICs. The data plane of NetHCF is implemented with P4, while the control plane is written in Python. But due to the non-disclosure agreement with Barefoot, we only open the source code of our BMv2 version.
+We implement NetHCF on both software simulator (BMv2) and realistic physical hardware (Tofino Switch). The data plane of NetHCF is implemented with P4-14, while the control plane is written in Python. But due to the non-disclosure agreement with Barefoot, we only open the source code of our BMv2 version.
 
 ## Design
 ### Modeling
 We set up a relatively simple model with h1-s1-h2 topology. We assume that h1 acts as a client(normal or attacker) which is ahead of the switch and h2 acts as a server which is behind the server.
+
 ### Workflow
 Please refer to our paper.
+
+* Jiasong Bai, Jun Bi, Menghao Zhang, Guanyu Li. [NetHCF: Filtering Spoofed IP Traffic Using Switching ASICs](https://zhangmenghao.github.io/papers/sigcomm2018-poster-filtering.pdf). In SIGCOMM Posters and Demos, Budapest, Hungary, August 20-25, 2018
+* Guanyu Li, Menghao Zhang, Chang Liu, Xiao Kong, Ang Chen, Guofei Gu, Haixin Duan. [NetHCF: Enabling Line-rate and Adaptive Spoofed IP Traffic Filtering](https://zhangmenghao.github.io/papers/ICNP2019NetHCF.pdf). In the 27th IEEE International Conference on Network Protocols (ICNP), Chicago, Illinois, USA, October 7-10, 2019
+* Journal version is still on the progress
+
 ## Test
 The method to start the p4 switch is to set up a topology on **mininet** where we run the switch.
 

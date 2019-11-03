@@ -8,7 +8,7 @@
 cd $SDE/pkgsrc/p4-build
 make clean
 echo 'clean done!'
-./configure --prefix=$SDE_INSTALL --with-tofino enable_thrift=yes P4_PATH=$SDE/nethcf/cache_version/tofino/switch/hop_count.p4 P4_NAME=nethcf
+./configure --prefix=$SDE_INSTALL --with-tofino enable_thrift=yes P4_PATH=$SDE/pkgsrc/nethcf/cache_version/tofino/switch/nethcf.p4 P4_NAME=nethcf
 
 make -j8
 echo 'make done!'

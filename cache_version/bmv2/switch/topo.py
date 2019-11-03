@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-# Copyright 2013-present Barefoot Networks, Inc. 
-# 
+# Copyright 2013-present Barefoot Networks, Inc.
+#
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-# 
+#
 #    http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
@@ -46,7 +46,6 @@ args = parser.parse_args()
 class MyTopo(Topo):
     def __init__(self, sw_path, json_path, thrift_port, **opts):
         Topo.__init__(self,**opts)
-        
         switch = self.addSwitch('s1',
                                 sw_path = sw_path,
                                 json_path = json_path,
@@ -68,14 +67,12 @@ class MyTopo(Topo):
                             ip = "10.0.0.31",
                             mac = "00:06:00:00:00:11")
         self.addLink(cpu, switch)
-                    
 
 def main():
 
     topo = MyTopo(args.behavioral_exe,
                   args.json,
                   args.thrift_port)
- 
 
     net = Mininet(topo = topo,
                   host = P4Host,
@@ -84,45 +81,45 @@ def main():
     net.start()
 
     sw_macs = ["00:aa:bb:00:00:04", "00:aa:bb:00:00:05"]
-    
+
     sw_addrs = ["10.0.0.1", "192.168.0.1"]
-    
+
     h_macs = ["00:05:00:00:00:11","00:04:00:00:00:11"]
     h_addrs = ['10.0.0.21','10.0.0.11']
-    
+
     for n in xrange(2):
         h = net.get('h%d' %(n+1))
         h.setARP(h_addrs[n], h_macs[n])
   #      h.setDefaultRoute("dev eth0 via %s" % sw_addrs[n])
-    
+
     for n in xrange(2):
         h = net.get('h%d' % (n+1))
         h.describe()
-    
+
     cpu = net.get('cpu')
     cpu.describe()
-    
+
     sleep(1)
-    
+
     cmd = [args.cli, args.json, str(args.thrift_port)]
     with open("commands.txt", "r") as f:
-        print " ".join(cmd)
+        print(" ".join(cmd))
         try:
             output = subprocess.check_output(cmd, stdin = f)
-            print output
+            print(output)
         except subprocess.CalledProcessError as e:
-            print e
-            print e.output
+            print(e)
+            print(e.output)
 
 
     sleep(1)
 
 
-    print "Ready !"
+    print("Ready !")
 
     CLI( net )
     net.stop()
 
 if __name__ == '__main__':
     setLogLevel( 'info' )
-    main() 
+    main()

@@ -1,9 +1,9 @@
 #!/bin/bash
 #created 2018.3 qiaoyi
-#modified from wsh's script
+#modified from qiaoyi's script
 #update 2018.11 qiaoyi to port from bf-sde-4-* to bf-sde-8-*
 
-#build synproxy program
+#build nethcf program
 
 cd $SDE/pkgsrc/p4-build
 make clean

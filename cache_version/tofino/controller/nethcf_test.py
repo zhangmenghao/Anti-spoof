@@ -33,6 +33,8 @@ from ptf import config
 from ptf.testutils import *
 from ptf.thriftutils import *
 from res_pd_rpc.ttypes import *
+from controller import NetHCFController
+from config import *
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -79,8 +81,14 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
         # initialize the connection
         pd_base_tests.ThriftInterfaceDataPlane.setUp(self)
         self.sess_hdl = self.conn_mgr.client_init()
+        self.dev = 0
         self.dev_tgt = DevTarget_t(0, hex_to_i16(0xFFFF))
         self.devPorts = []
+        DP_CONFIG["dp_interface"] = self.client
+        DP_CONFIG["sess_hdl"] = self.sess_hdl
+        DP_CONFIG["dev"] = self.dev
+        DP_CONFIG["dev_tgt"] = self.dev_tgt
+        DP_CONFIG["hw_sync_flag"]= nethcf_register_flags_t(read_hw_sync = True)
 
         self.platform_type = "mavericks"
         board_type = self.pltfm_pm.pltfm_pm_board_type_get()
@@ -113,16 +121,12 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             pass
 
     def runTest(self):
-        self.client.init_set_default_action_init_action_(self.sess_hdl,self.dev_tgt,
-        nethcf_init_action__action_spec_t(16000,16000));
+        controller = NetHCFController("veth251", {0: 0})
 
         # TODO: self.client.*table*_set_default_action_*action*(self.sess_hdl, self.dev_tgt);
-
+        controller.initialize()
         self.conn_mgr.complete_operations(self.sess_hdl)
-        while(True):
-            pass
-
-
+        controller.run()
 
 
     def tearDown(self):
@@ -133,7 +137,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
             print "Cleaning up"
 
             # delete the programmed forward table entry
-            self.cleanup_table("forward")
+            # self.cleanup_table("forward")
             # delete the platform ports
             self.conn_mgr.client_cleanup(self.sess_hdl)
             for i in self.devPorts:

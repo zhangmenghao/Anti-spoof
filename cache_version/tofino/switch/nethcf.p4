@@ -93,6 +93,7 @@ header_type meta_t {
         dirty_hc_hit_flag : 1; // Whether Hop Count exists in temporary bitmap
         temporary_bitmap_index : TEMPORARY_BITMAP_INDEX_WIDTH;
         temporary_bitarray : TEMPORARY_BITMAP_WIDTH;
+        ip2hc_counter_update : 1;
         // hop_count_bitarray : TEMPORARY_BITMAP_WIDTH;
         update_ip2hc_flag : 1; // Whether need to update IP2HC in cache
         /* Metadata about session monitor */
@@ -171,14 +172,14 @@ register r_session_seq {
 }
 
 // The number of abnormal packet per period
-counter r_mismatch_counter {
-    type : packets;
+register r_mismatch_counter {
+    width : 32;
     instance_count : 1;
 }
 
 // The number of missed packets
-counter r_miss_counter {
-    type : packets;
+register r_miss_counter {
+    type : 32;
     instance_count : 1;
 }
 
@@ -275,9 +276,12 @@ table ip2hc_table {
     default_action : table_miss();
     size : IP2HC_TABLE_SIZE;
 }
-
+blackbox stateful_alu s_update_miss_counter {
+    reg : r_miss_counter;
+    update_lo_1_value : register_lo;
+}
 action table_miss() {
-    count(r_miss_counter, 0);
+    s_update_miss_counter.execute_stateful_alu(0);
     modify_field(meta.ip2hc_hit_flag, 0);
 }
 
@@ -298,31 +302,19 @@ table hc_inspect_table {
     default_action : inspect_hc(255);
     size : HC_INSPECT_TABLE_SIZE;
 }
-
 action inspect_hc(initial_ttl) {
     subtract(meta.packet_hop_count, initial_ttl, ipv4.ttl);
 }
 
-// Update r_ip2hc_counter
-table ip2hc_counter_update_table {
+table set_ip2hc_counter_update_table_1 {
     actions {
-        update_ip2hc_counter;
+        set_ip2hc_counter_update_1;
     }
-    default_action : update_ip2hc_counter();
+    default_action : set_ip2hc_counter_update_1();
     size : ONE_ACTION_TABLE_SIZE;
 }
-
-// read r_ip2hc_counter, increment by 1
-// then write back and output the value into meta.ip2hc_counter_value
-blackbox stateful_alu s_update_ip2hc_counter{
-    reg : r_ip2hc_counter;
-    update_lo_1_value : register_lo + 1;
-
-    output_value : alu_lo;
-    output_dst : meta.ip2hc_counter_value;
-}
-action update_ip2hc_counter() {
-    s_update_ip2hc_counter.execute_stateful_alu(meta.ip2hc_index);
+action set_ip2hc_counter_update_1 {
+    modify_field(meta.ip2hc_counter_update, 1);
 }
 
 table calculate_session_table_index_table {
@@ -563,95 +555,203 @@ action monitor_session(tag) {
     modify_field(meta.packet_tag, tag);
 }
 
-
-// Get packets' tcp session information. Notice: dual direction packets in one
-// flow should belong to same tcp session and use same hash value
-// NOTICE
-// session_monitor_prepare_table has to be split into 3 seperate tables
-// to run serial instructions
-
-table session_monitor_prepare_table_2 {
+// reinspect
+table update_ip2hc_valid_flag_table {
     actions {
-        prepare_for_session_monitor_2;
+        update_ip2hc_valid_flag;
     }
-    default_action : prepare_for_session_monitor_2();
+    default_action : update_ip2hc_valid_flag();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_read_session_state{
-    reg : r_session_state;
-    update_lo_1_value : register_lo;
+blackbox stateful_alu s_update_ip2hc_valid_flag{
+    reg : r_ip2hc_valid_flag;
+    condition_lo : meta.packet_tag == 5; /* Update bitmap */
+
+    update_lo_1_predicate : condition_lo;
+    update_lo_1_value : 1;
+    update_lo_2_predicate : not condition_lo;
+    update_lo_2_value : register_lo;
 
     output_value : alu_lo;
-    output_dst : meta.session_state;
+    output_dst : meta.ip2hc_valid_flag;
 }
-blackbox stateful_alu s_read_session_seq{
-    reg : r_session_seq;
-    update_lo_1_value : register_lo;
-
-    output_value : alu_lo;
-    output_dst : meta.session_seq;
-}
-action prepare_for_session_monitor_2() {
-    s_read_session_state.execute_stateful_alu(meta.session_index);
-    s_read_session_seq.execute_stateful_alu(meta.session_index);
+action update_ip2hc_valid_flag() {
+    s_update_ip2hc_valid_flag.execute_stateful_alu(meta.ip2hc_index);
 }
 
-table session_monitor_prepare_table_3 {
+table update_temporary_bitmap_table {
     actions {
-        prepare_for_session_monitor_3;
+        update_temporary_bitmap;
     }
-    default_action : prepare_for_session_monitor_3();
+    default_action : update_temporary_bitmap();
     size : ONE_ACTION_TABLE_SIZE;
 }
-action prepare_for_session_monitor_3() {
-    subtract(meta.ack_seq_diff, tcp.ackNo, meta.session_seq);
+blackbox stateful_alu s_update_temporary_bitmap{
+    reg : r_temporary_bitmap;
+    condition_lo : meta.packet_tag == 5; /* Update bitmap */
+
+    update_lo_1_predicate : condition_lo;
+    update_lo_1_value : 1;
+    update_lo_2_predicate : not condition_lo;
+    update_lo_2_value : register_lo;
+
+    output_predicate : meta.ip2hc_valid_flag == 1;
+    output_value : alu_lo;
+    // output = 1 only when valid == 1 and bitmap == 1
+    output_dst : meta.dirty_hc_hit_flag;
+}
+action update_temporary_bitmap() {
+    s_update_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
 }
 
-field_list_calculation session_index_hash {
-    input {
-        l3_hash_fields;
+
+table set_ip2hc_counter_update_table_2 {
+    actions {
+        set_ip2hc_counter_update_2;
     }
-    algorithm : crc16;
-    output_width : SESSION_INDEX_WIDTH;
+    default_action : set_ip2hc_counter_update_2();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+action set_ip2hc_counter_update_2 {
+    modify_field(meta.ip2hc_counter_update, 2);
 }
 
-field_list l3_hash_fields {
-    meta.src_dst_ip;
-    ipv4.protocol;
-    // meta.src_dst_port;
+
+
+
+// If the packet is judged as abnormal because its suspected hop-count,
+// handle it according to the nethcf state.
+// For learning state, just update r_mismatch_counter
+// For filtering state, every abnormal packets should be dropped and
+// r_mismatch_counter should be updated as well
+table process_mismatch_table {
+    actions {
+        process_mismatch;
+    }
+    default_action : process_mismatch();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+blackbox stateful_alu s_update_mismatch_counter {
+    reg : r_mismatch_counter;
+    update_lo_1_value : register_lo + 1;
+}
+action process_mismatch() {
+    s_update_mismatch_counter.execute_stateful_alu(0);
 }
 
-// Mointor tcp session according to expected state transition
-table session_monitor_table {
+table process_mismatch_at_filtering_table {
+    actions {
+        process_mismatch_at_filtering;
+    }
+    default_action : process_mismatch_at_filtering();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+action process_mismatch_at_filtering() {
+    modify_field(meta.packet_tag, ABNORMAL_FLAG);
+}
+
+
+// Update r_ip2hc_counter
+table ip2hc_counter_update_table {
+    actions {
+        update_ip2hc_counter;
+    }
+    default_action : update_ip2hc_counter();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+// read r_ip2hc_counter, increment by 1
+// then write back and output the value into meta.ip2hc_counter_value
+blackbox stateful_alu s_update_ip2hc_counter{
+    reg : r_ip2hc_counter;
+    condition_lo : meta.ip2hc_counter_update == 1;
+    condition_hi : meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag == 1;
+
+    update_lo_1_predicate : condition_lo and condition_hi;
+    update_lo_1_value : register_lo + 1;
+
+    output_value : alu_lo;
+    output_dst : meta.ip2hc_counter_value;
+}
+action update_ip2hc_counter() {
+    s_update_ip2hc_counter.execute_stateful_alu(meta.ip2hc_index);
+}
+
+// Set r_report_bitarray
+table report_bitarray_set_table {
+    actions {
+        set_report_bitarray;
+    }
+    default_action : set_report_bitarray();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+blackbox stateful_alu s_set_report_bitarray {
+    reg : r_report_bitarray;
+    update_lo_1_value : 1;
+}
+action set_report_bitarray() {
+    s_set_report_bitarray.execute_stateful_alu(meta.ip2hc_index);
+}
+
+
+// When a packet is missed, clone it to controller and pass it at learning state
+table process_miss_at_learning_table {
+    actions {
+        process_miss_at_learning;
+    }
+    default_action : process_miss_at_learning();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+action process_miss_at_learning() {
+    // CLONE NOT WORKING
+    // clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+}
+// field_list meta_data_for_clone {
+//     ig_intr_md;
+//     meta;
+// }
+
+// When a packet is missed, direct it to controller at filtering state
+table process_miss_at_filtering_table {
+    actions {
+        process_miss_at_filtering;
+    }
+    default_action : process_miss_at_filtering();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+
+action process_miss_at_filtering() {
+    // CLONE NOT WORKING
+    // clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
+    modify_field(meta.packet_tag, ABNORMAL_FLAG);
+}
+
+// Forward table, now it just support layer 2
+table forward_table {
     reads {
-        tcp.syn : exact;
-        tcp.ack : exact;
-        meta.ack_seq_diff : ternary;
-        meta.session_state : ternary;
+        meta.packet_tag : exact;
+        /*
+         * #define NORMAL_FLAG 0
+         * #define REPLY_SA_FLAG 1
+         * #define REPLY_RST_FLAG 2
+         * #define ABNORMAL_FLAG 3
+         * #define PASS_AND_NOP 4
+         * #define SAVE_TO_BITMAP 5
+         */
+        ig_intr_md.ingress_port : exact;
     }
     actions {
-        monitor_session;
+        _drop;
+        forward_l2;
+        send_back_sa;
+        send_back_rst;
     }
-    default_action : monitor_session(0);
-    size : 10;
+    default_action : _drop();
+    size : FORWARD_TABLE_SIZE;
 }
-
-action monitor_session(session_monitor_result) {
-    modify_field(meta.session_monitor_result, session_monitor_result);
-    // Debuging
-    // modify_field(ipv4.ttl, meta.session_index);
+action forward_l2(egress_port) {
+    modify_field(eg_intr_md.egress_port, egress_port);
 }
-
-// Receive the first SYN packet, employ SYN Cookie to defend
-table syn_cookie_init_table {
-    actions {
-        init_syn_cookie;
-    }
-    default_action : init_syn_cookie();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action init_syn_cookie() {
+action send_back_sa() {
     // Return SYN/ACK
     modify_field(tcp.syn, 1);
     modify_field(tcp.ack, 1);
@@ -664,132 +764,9 @@ action init_syn_cookie() {
     swap(ipv4.srcAddr, ipv4.dstAddr);
     // Exchange src and dst port
     swap(tcp.srcPort, tcp.dstPort);
-    // Store SYN Cookie into r_session_seq register array
-    register_write(r_session_seq, meta.session_index, tcp.seqNo);
-    // Update session state
-    register_write(r_session_state, meta.session_index, SYN_COOKIE_START);
-    // Tag the packet to forward it back
-    modify_field(meta.packet_tag, SYN_COOKIE_FLAG);
+    modify_field(eg_intr_md.egress_port, ig_intr_md.ingress_port);
 }
-
-// Someone is attempting to establish a connection from server
-table session_init_table {
-    actions {
-        init_session;
-    }
-    default_action : init_session();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action init_session() {
-    register_write(r_session_state, meta.session_index, HANDSHAKE_START);
-    register_write(r_session_seq, meta.session_index, tcp.seqNo);
-}
-
-// Establish the connection, and update IP2HC
-table session_complete_table {
-    actions {
-        complete_session;
-    }
-    default_action : complete_session();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action complete_session() {
-    // Update tcp session state
-    register_write(r_session_state, meta.session_index, SESSION_INITIAL);
-}
-
-// Update Hop Count at switch and controller
-table hc_update_table {
-    actions {
-        update_hc;
-    }
-    default_action : update_hc();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action update_hc() {
-    // Set IP2HC table entry to dirty
-    set_entry_to_dirty();
-    update_controller();
-}
-
-action set_entry_to_dirty() {
-    register_write(r_ip2hc_valid_flag, meta.ip2hc_index, 1);
-    // Store the new Hop Count into the dirty bitmap
-    write_to_temporary_bitmap();
-}
-
-blackbox stateful_alu s_set_temporary_bitmap{
-    reg : r_temporary_bitmap;
-    update_lo_1_value : 1;
-
-    output_value : alu_lo;
-}
-action write_to_temporary_bitmap() {
-    /****************************************************
-     * TOFINO: use a simple version of bitmap instead
-     * An array instead of a bitmap (length of TEMPORARY_BITMAP_SIZE * TEMPORARY_BITMAP_ARRAY_SIZE)
-     * one bit per row
-     * may bring some hash collisions though ...
-     ****************************************************/
-    s_set_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
-    /*************************************************************************
-     * OLD bmv2 version
-    // Compute the index value (row number) of temporary bitmap
-    modify_field_with_hash_based_offset(
-        meta.temporary_bitmap_index, 0,
-        temporary_bitmap_index_hash, TEMPORARY_BITMAP_SIZE
-    );
-    // Read the row (bitarray) from the temporary bitmap
-    register_read(
-        meta.temporary_bitarray, r_temporary_bitmap, meta.temporary_bitmap_index
-    );
-    // Compute the corresponding bitarray according to new Hop Count of packets
-    shift_left(meta.hop_count_bitarray, 1, meta.packet_hop_count);
-    // Compute the new row
-    bit_or(
-        meta.temporary_bitarray,
-        meta.temporary_bitarray, meta.hop_count_bitarray
-    );
-    // Write the new row back to temporary bitmap
-    register_write(
-        r_temporary_bitmap, meta.temporary_bitmap_index, meta.temporary_bitarray
-    );
-     **************************************************************************/
-}
-
-field_list_calculation temporary_bitmap_index_hash {
-    input { temporary_bitmap_index_hash_fields; }
-    algorithm : crc16;
-    output_width : TEMPORARY_BITMAP_INDEX_WIDTH;
-}
-
-field_list temporary_bitmap_index_hash_fields {
-    meta.ip_for_match;
-    meta.packet_hop_count;
-}
-
-// When a session is complete on the switch, the switch will send
-// a packet to controller to update IP2HC table on the controller
-action update_controller() {
-    //modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
-    //modify_field(eg_intr_md.egress_port, CONTROLLER_PORT);
-    modify_field(meta.update_ip2hc_flag, 1);
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
-}
-
-// This connection pass SYN Cookie check, let the client reconnect
-table syn_cookie_complete_table {
-    actions {
-        complete_syn_cookie;
-    }
-    default_action : complete_syn_cookie();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action complete_syn_cookie() {
+action send_back_rst() {
     // Return RST packet
     modify_field(tcp.ack, 0);
     modify_field(tcp.psh, 0);
@@ -802,166 +779,9 @@ action complete_syn_cookie() {
     swap(ipv4.srcAddr, ipv4.dstAddr);
     // Exchange src and dst port
     swap(tcp.srcPort, tcp.dstPort);
-    // Update session state
-    register_write(r_session_state, meta.session_index, SYN_COOKIE_FINISH);
-    // Tag the packet to forward it back
-    modify_field(meta.packet_tag, SYN_COOKIE_FLAG);
+    modify_field(eg_intr_md.egress_port, ig_intr_md.ingress_port);
 }
 
-// Pass SYN Cookie inspection, and restart session monitor like learning state
-table session_monitor_restart_table {
-    actions {
-        restart_session_monitor;
-    }
-    default_action : restart_session_monitor();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action restart_session_monitor() {
-    // Reset session state
-    register_write(r_session_state, meta.session_index, SESSION_INITIAL);
-}
-
-// Except for HC computing, check whether the IP2HC item is dirty
-table hc_reinspect_table {
-    actions {
-        reinspect_hc;
-    }
-    default_action : reinspect_hc();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action reinspect_hc() {
-    //TODO: may needs to merge
-    register_read(meta.ip2hc_valid_flag, r_ip2hc_valid_flag, meta.ip2hc_index);
-    read_from_temporary_bitmap();
-}
-
-blackbox stateful_alu s_read_temporary_bitmap{
-    reg : r_temporary_bitmap;
-    update_lo_1_value : register_lo;
-
-    output_value : register_lo;
-    output_dst : meta.dirty_hc_hit_flag;
-}
-action read_from_temporary_bitmap() {
-    /****************************************************
-     * TOFINO: use a simple version of bitmap instead
-     * An array instead of a bitmap (length of TEMPORARY_BITMAP_SIZE * TEMPORARY_BITMAP_ARRAY_SIZE)
-     * one bit per row
-     * may bring some hash collisions though ...
-     ****************************************************/
-    s_read_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
-    /*************************************************************************
-     * OLD bmv2 version
-    s_set_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
-    // Compute the index value (row number) of temporary bitmap
-    modify_field_with_hash_based_offset(
-        meta.temporary_bitmap_index, 0,
-        temporary_bitmap_index_hash, TEMPORARY_BITMAP_SIZE
-    );
-    // Read the row (bitarray) from the temporary bitmap
-    register_read(
-        meta.temporary_bitarray, r_temporary_bitmap, meta.temporary_bitmap_index
-    );
-    shift_right(
-        meta.temporary_bitarray, meta.temporary_bitarray, meta.packet_hop_count
-    );
-    bit_and(meta.dirty_hc_hit_flag, meta.temporary_bitarray, 1);
-     **************************************************************************/
-}
-
-// Set r_report_bitarray
-table report_bitarray_set_table {
-    actions {
-        set_report_bitarray;
-    }
-    default_action : set_report_bitarray();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action set_report_bitarray() {
-    register_write(r_report_bitarray, meta.ip2hc_index, 1);
-}
-
-// If the packet is judged as abnormal because its suspected hop-count,
-// handle it according to the nethcf state.
-// For learning state, just update r_mismatch_counter
-// For filtering state, every abnormal packets should be dropped and
-// r_mismatch_counter should be updated as well
-table process_mismatch_at_learning_table {
-    actions {
-        process_mismatch_at_learning;
-    }
-    default_action : process_mismatch_at_learning();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action process_mismatch_at_learning() {
-    count(r_mismatch_counter, 0);
-}
-
-table process_mismatch_at_filtering_table {
-    actions {
-        process_mismatch_at_filtering;
-    }
-    default_action : process_mismatch_at_filtering();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action process_mismatch_at_filtering() {
-    count(r_mismatch_counter, 0);
-    tag_packet_abnormal();
-}
-
-// When a packet is missed, clone it to controller and pass it at learning state
-table process_miss_at_learning_table {
-    actions {
-        process_miss_at_learning;
-    }
-    default_action : process_miss_at_learning();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action process_miss_at_learning() {
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
-}
-
-field_list meta_data_for_clone {
-    ig_intr_md;
-    meta;
-}
-
-// When a packet is missed, direct it to controller at filtering state
-table process_miss_at_filtering_table {
-    actions {
-        process_miss_at_filtering;
-    }
-    default_action : process_miss_at_filtering();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action process_miss_at_filtering() {
-    clone_ingress_pkt_to_egress(CLONE_SPEC_VALUE, meta_data_for_clone);
-    tag_packet_abnormal();
-}
-
-// Forward table, now it just support layer 2
-table l2_forward_table {
-    reads {
-        ig_intr_md.ingress_port : exact;
-    }
-    actions {
-        _drop;
-        forward_l2;
-    }
-    default_action : _drop();
-    size : FORWARD_TABLE_SIZE;
-}
-
-action forward_l2(egress_port) {
-    modify_field(eg_intr_md.egress_port, egress_port);
-}
 
 action _drop() {
     drop();
@@ -975,18 +795,6 @@ table drop_table {
     size : ONE_ACTION_TABLE_SIZE;
 }
 
-// Forward back the packet
-table back_forward_table {
-    actions {
-        forward_back;
-    }
-    default_action : forward_back();
-    size : ONE_ACTION_TABLE_SIZE;
-}
-
-action forward_back() {
-    modify_field(eg_intr_md.egress_port, ig_intr_md.ingress_port);
-}
 
 // For the final ack packet of handshaking, change the dst ip to tell controller
 // this is a Hop Count update message
@@ -1000,7 +808,8 @@ table process_hc_update_table {
 
 action process_hc_update() {
     modify_field(ipv4.dstAddr, CONTROLLER_IP_ADDRESS);
-    truncate(PACKET_TRUNCATE_LENGTH);
+    // MAY NOT BE WORKING
+    // truncate(PACKET_TRUNCATE_LENGTH);
 }
 
 // At learning state, for the cloned missed packet which should be sent to
@@ -1014,7 +823,8 @@ table process_cloned_miss_at_learning_table {
 }
 
 action process_cloned_miss_at_learning() {
-    truncate(PACKET_TRUNCATE_LENGTH);
+    // MAY NOT BE WORKING
+    // truncate(PACKET_TRUNCATE_LENGTH);
 }
 
 // At filtering state, for the cloned missed packet which should be sent to
@@ -1052,7 +862,7 @@ control ingress {
                 // It is normal
                 // Only update hit count when the Hop Count is correct
                 /* Stateful_alu : r_ip2hc_counter */
-                apply(ip2hc_counter_update_table);
+                apply(set_ip2hc_counter_update_table_1);
             }
             else {
                 // hop count does not match
@@ -1113,27 +923,27 @@ control ingress {
                  * #define PASS_AND_NOP 4
                  * #define SAVE_TO_BITMAP 5
                  */
-                // UNFINISHED
-                // Packets pass TCP session monitoring, compute packet's hop
-                // count and refer to its original Hop Count
-                apply(hc_reinspect_table);  //TODO: register_read * 2
-                if ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1) {
-                    // Only update hit count when the Hop Count is correct
-                    apply(ip2hc_counter_update_table);  //TODO: Register_read and register_write
-                }
-                else {
-                    // Suspicious packets with mismatched Hop Count value
-                    if (meta.nethcf_state == LEARNING_STATE) {
-                        apply(process_mismatch_at_learning_table);  //TODO: counter
+                // update r_ip2hc_valid_flag
+                apply(update_ip2hc_valid_flag_table);
+                // update r_temporary_bitmap
+                apply(update_temporary_bitmap_table);
+                if (meta.packet_tag == NORMAL_FLAG) {
+                    if(meta.dirty_hc_hit_flag == 1){
+                        apply(set_ip2hc_counter_update_table_2);
                     }
                     else {
-                        apply(process_mismatch_at_filtering_table); //TODO: counter
+                        // Suspicious packets with mismatched Hop Count value
+                        apply(process_mismatch_table);
+                        if (meta.nethcf_state == FILTERING_STATE) {
+                            apply(process_mismatch_at_filtering_table);
+                        }
                     }
                 }
             }
+            apply(ip2hc_counter_update_table);
             // Hot IP2HC entry process
             if (meta.ip2hc_counter_value > IP2HC_HOT_THRESHOLD) {
-                apply(report_bitarray_set_table);   //TODO: Register_write
+                apply(report_bitarray_set_table);
             }
         }
         else {
@@ -1147,18 +957,7 @@ control ingress {
         }
     }
     // Drop abnormal packets and forward normal packets in layer two
-    if (meta.packet_tag == NORMAL_FLAG) {
-        // Normal packets
-        apply(l2_forward_table);
-    }
-    else if (meta.packet_tag == ABNORMAL_FLAG) {
-        // Abnormal packets
-        apply(drop_table);
-    }
-    else {
-        // Packets with SYN Cookie
-        apply(back_forward_table);
-    }
+    apply(forward_table);
 }
 
 control egress {

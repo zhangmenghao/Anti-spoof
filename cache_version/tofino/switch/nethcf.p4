@@ -179,7 +179,7 @@ register r_mismatch_counter {
 
 // The number of missed packets
 register r_miss_counter {
-    type : 32;
+    width : 32;
     instance_count : 1;
 }
 
@@ -313,7 +313,7 @@ table set_ip2hc_counter_update_table_1 {
     default_action : set_ip2hc_counter_update_1();
     size : ONE_ACTION_TABLE_SIZE;
 }
-action set_ip2hc_counter_update_1 {
+action set_ip2hc_counter_update_1() {
     modify_field(meta.ip2hc_counter_update, 1);
 }
 
@@ -332,6 +332,19 @@ action calculate_session_table_index() {
         session_index_hash, SESSION_TABLE_SIZE
     );
 }
+field_list_calculation session_index_hash {
+    input {
+        l3_hash_fields;
+    }
+    algorithm : crc16;
+    output_width : SESSION_INDEX_WIDTH;
+}
+
+field_list l3_hash_fields {
+    meta.src_dst_ip;
+    ipv4.protocol;
+    // meta.src_dst_port;
+}
 
 // Calculate SYN cookie value
 table calculate_cookie_seqno_table {
@@ -344,7 +357,7 @@ table calculate_cookie_seqno_table {
 action calculate_cookie_seqno() {
     modify_field_with_hash_based_offset(
         meta.calculated_syn_cookie, 0,
-        syn_cookie_hash, 0x100000000 /* 2^32 */);
+        syn_cookie_hash, 0x100000000 /* 2^32 */
     );
 }
 field_list_calculation syn_cookie_hash {
@@ -612,7 +625,7 @@ table set_ip2hc_counter_update_table_2 {
     default_action : set_ip2hc_counter_update_2();
     size : ONE_ACTION_TABLE_SIZE;
 }
-action set_ip2hc_counter_update_2 {
+action set_ip2hc_counter_update_2() {
     modify_field(meta.ip2hc_counter_update, 2);
 }
 
@@ -664,7 +677,7 @@ table ip2hc_counter_update_table {
 blackbox stateful_alu s_update_ip2hc_counter{
     reg : r_ip2hc_counter;
     condition_lo : meta.ip2hc_counter_update == 1;
-    condition_hi : meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag == 1;
+    condition_hi : meta.ip2hc_valid_flag and meta.dirty_hc_hit_flag == 1;
 
     update_lo_1_predicate : condition_lo and condition_hi;
     update_lo_1_value : register_lo + 1;

@@ -50,9 +50,11 @@
 
 /* Flag of packets */
 #define NORMAL_FLAG 0
-#define ABNORMAL_FLAG 1
-#define REPLY_SA_FLAG 2
-#define REPLY_RST_FLAG 3
+#define REPLY_SA_FLAG 1
+#define REPLY_RST_FLAG 2
+#define ABNORMAL_FLAG 3
+#define PASS_AND_NOP 4
+#define SAVE_TO_BITMAP 5
 
 /* States of TCP session monitor */
 #define SESSION_INITIAL 0
@@ -61,19 +63,16 @@
 #define SYN_COOKIE_FINISH 3
 
 /* Results of TCP Proxy */
-#define PASS_TO_MONITOR 0
-#define PROXY_REPLY_SYN_ACK 1
-#define PROXY_REPLY_RST 2
-#define PROXY_ABNORMAL 3
-
+// #define PASS_TO_MONITOR 0
+// #define PROXY_REPLY_SYN_ACK 1
+// #define PROXY_REPLY_RST 2
+// #define PROXY_ABNORMAL 3
 /* Results of TCP session monitor */
-#define PASS_AND_NOP 0
-#define FIRST_SYN 1
-#define SYNACK_WITHOUT_PROXY 2
-#define ACK_WITHOUT_PROXY 3
-#define ACK_WITH_PROXY 4
-#define SYN_AFTER_PROXY 5
-#define MONITOR_ABNORMAL 6
+// #define SYNACK_WITHOUT_PROXY 2
+// #define ACK_WITHOUT_PROXY 3
+// #define ACK_WITH_PROXY 4
+// #define SYN_AFTER_PROXY 5
+// #define MONITOR_ABNORMAL 6
 
 /*******************************************************************************
 *****                       Metadata Definition                           ******
@@ -371,18 +370,18 @@ field_list symmetry_hash_fields {
 }
 
 // Calculate its difference with the actual one
-table calculate_seqno_diff_table {
+table calculate_seqno_diff_table_1 {
     actions {
-        calculate_seqno_diff;
+        calculate_seqno_diff_1;
     }
-    default_action : calculate_seqno_diff();
+    default_action : calculate_seqno_diff_1();
     size : ONE_ACTION_TABLE_SIZE;
 }
-action calculate_seqno_diff() {
+action calculate_seqno_diff_1() {
     subtract(meta.seq_no_diff, tcp.ackNo, meta.calculated_syn_cookie);
 }
 
-table prepare_tcp_flags_as_real_table {
+table prepare_tcp_flags_as_real_table_1 {
     reads {
         tcp.syn : exact;
         tcp.ack : exact;
@@ -395,12 +394,12 @@ table prepare_tcp_flags_as_real_table {
          */
     }
     actions {
-        prepare_tcp_flags_as_real;
+        prepare_tcp_flags_as_real_1;
     }
-    default_action : prepare_tcp_flags_as_real(3);
-    size : ONE_ACTION_TABLE_SIZE;
+    default_action : prepare_tcp_flags_as_real_1(3);
+    size : 4;
 }
-action prepare_tcp_flags_as_real(real_num) {
+action prepare_tcp_flags_as_real_1(real_num) {
     modify_field(meta.tcp_syn_ack, real_num);
 }
 
@@ -421,7 +420,7 @@ blackbox stateful_alu s_update_proxy_session_state {
      *    01      1      2             2(1+1)(PREDICATE_1)
      *    10      2      4                0  (PREDICATE_2)
      */
-    condition_lo : meta.tcp_syn_ack + register_lo;
+    condition_lo : meta.tcp_syn_ack + register_lo == 2;
 	update_lo_1_predicate : condition_lo;
     update_lo_1_value : register_lo + 1;    // STATE_0->STATE_1 or STATE_1->STATE_2
 	update_lo_2_predicate: not condition_lo;
@@ -441,11 +440,11 @@ table session_proxy_table {
         meta.seq_no_diff : ternary;
         meta.proxy_session_state : ternary;
         /* STATIC ENTRIES
-         * 1 0 0&&&0 0 -> 2 Reply: SYN+ACK            (Priority 1)
-         * 0 1 1&&&1 1 -> 3 Reply: RST                (Priority 1)
+         * 1 0 0&&&0 0 -> 1 Reply: SYN+ACK            (Priority 1)
+         * 0 1 1&&&1 1 -> 2 Reply: RST                (Priority 1)
          * 1 0 0&&&0 2 -> 0 Tag: Proceed to Monitor   (Priority 1)
-         * 0 1 0&&&0 2 -> 1 Tag: ABNORMAL             (Priority 1)
-         * 0 1 0&&&0 1 -> 1 Tag: ABNORMAL             (Priority 0)
+         * 0 1 0&&&0 2 -> 3 Tag: ABNORMAL             (Priority 1)
+         * 0 1 0&&&0 1 -> 3 Tag: ABNORMAL             (Priority 0)
          * else        -> 0 Tag: Proceed to Monitor   (Priority 0)
          */
     }
@@ -458,6 +457,112 @@ table session_proxy_table {
 action proxy_session(tag) {
     modify_field(meta.packet_tag, tag);
 }
+
+table prepare_tcp_flags_as_real_table_2 {
+    reads {
+        tcp.syn : exact;
+        tcp.ack : exact;
+        /* STATIC ENTRIES
+         * 0 1 -> 1
+         * 1 1 -> 2
+         * ELSE -> 0
+         */
+    }
+    actions {
+        prepare_tcp_flags_as_real_2;
+    }
+    default_action : prepare_tcp_flags_as_real_2(0);
+    size : 4;
+}
+action prepare_tcp_flags_as_real_2(real_num) {
+    modify_field(meta.tcp_syn_ack, real_num);
+}
+
+table update_session_seq_table {
+    actions {
+        update_session_seq;
+    }
+    default_action : update_session_seq();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+blackbox stateful_alu s_update_session_seq{
+    reg : r_session_seq;
+    condition_lo : meta.tcp_syn_ack == 2 /* 1 1 */;
+    update_lo_1_predicate : condition_lo;
+    update_lo_1_value : tcp.seqNo;
+
+    output_value : alu_lo;
+    output_dst : meta.session_seq;
+}
+action update_session_seq() {
+    s_update_session_seq.execute_stateful_alu(meta.session_index);
+}
+
+table calculate_seqno_diff_table_2 {
+    actions {
+        calculate_seqno_diff_2;
+    }
+    default_action : calculate_seqno_diff_2();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+action calculate_seqno_diff_2() {
+    subtract(meta.seq_no_diff, tcp.ackNo, meta.session_seq);
+}
+
+// Update register r_monitor_session_state
+table update_monitor_session_state_table {
+    actions {
+        update_monitor_session_state;
+    }
+    default_action : update_monitor_session_state();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+blackbox stateful_alu s_update_monitor_session_state {
+    reg : r_monitor_session_state;
+    /* A Tricky Implementation
+     * Use a table to combine SYN+ACK information into a number
+     *  SYNACK     STATE   SUM SEQ#diff ->   STATE
+     *    11(2)      0      2     /      1(PREDICATE_1)
+     *    01(1)      1      2     1      0(PREDICATE_2)
+     */
+    condition_lo : meta.tcp_syn_ack + register_lo == 2;
+    condition_hi : meta.seq_no_diff == 1;
+
+	update_lo_1_predicate : condition_lo;
+    update_lo_1_value : 1;
+	update_lo_2_predicate: condition_hi and not condition_lo;
+	update_lo_2_value : 0;
+
+    output_value : register_lo;
+    output_dst : meta.monitor_session_state;
+}
+action update_monitor_session_state() {
+    s_update_monitor_session_state.execute_stateful_alu(meta.session_index);
+}
+
+table session_monitor_table {
+    reads {
+        tcp.syn : exact;
+        tcp.ack : exact;
+        meta.seq_no_diff : ternary;
+        meta.monitor_session_state : ternary;
+        /* STATIC ENTRIES UNFINISHED
+         * 1 1 0&&&0 0 -> 4 PASS                      (Priority 1)
+         * 0 1 1&&&1 1 -> 5 STORE in bitmap           (Priority 1)
+         * 0 1 0&&&0 1 -> 3 Tag: ABNORMAL             (Priority 0)
+         * else        -> 0 Reinspect                 (Priority 0)
+         */
+    }
+    actions {
+        monitor_session;
+    }
+    default_action : monitor_session(0);
+    size : 10;
+}
+action monitor_session(tag) {
+    modify_field(meta.packet_tag, tag);
+}
+
 
 // Get packets' tcp session information. Notice: dual direction packets in one
 // flow should belong to same tcp session and use same hash value
@@ -963,7 +1068,7 @@ control ingress {
                  *  6) OTHERS -> PASS to Monitor Module
                  * 2. Monitor Module
                  *  1) SYN + ACK + STATE_0 -> STATE_1 + store SEQ#
-                 *  2) ACK + STATE_1 -> STATE_0 + right SEQ# -> update BITMAP + VALID_ARRAY
+                 *  2) ACK + STATE_1 + right SEQ# -> STATE_0 + update BITMAP + VALID_ARRAY
                  *  3) ACK + STATE_1 -> mark as ABNORMAL
                  *  4) OTHERS -> check BITMAP + VALID_ARRAY
                  ****************************************************/
@@ -978,69 +1083,52 @@ control ingress {
                     // calculate syn cookie
                     apply(calculate_cookie_seqno_table);
                     // calculate the difference between cookie and read SEQ#
-                    apply(calculate_seqno_diff_table);
+                    apply(calculate_seqno_diff_table_1);
                     // Add another table to combine SYN+ACK information into a number
-                    apply(prepare_tcp_flags_as_real_table);
-                    // update register r_proxy_session_state
+                    apply(prepare_tcp_flags_as_real_table_1);
+                    // read and update register r_proxy_session_state
                     apply(update_proxy_session_state_table);
                     // Tag packets according to various senarios
                     apply(session_proxy_table);
                 }
                 if (meta.packet_tag == NORMAL_FLAG){
                     // MONITOR
+                    // Add another table to combine SYN+ACK information into a number
+                    apply(prepare_tcp_flags_as_real_table_2);
+                    // read and update register r_session_seq
+                    apply(update_session_seq_table);
+                    // calculate SEQ# diff
+                    apply(calculate_seqno_diff_table_2);
+                    // read and update register r_monitor_session_state
+                    apply(update_monitor_session_state_table);
+                    // Tag packets according to various senarios
+                    apply(session_monitor_table);
                 }
-
-
-                // Operate tcp session monitoring
-                /* Stateful_alu : r_session_state & r_session_seq */
-                apply(session_monitor_prepare_table_2);
-                apply(session_monitor_prepare_table_3);
-                apply(session_monitor_table);
-                if (meta.session_monitor_result == FIRST_SYN) {
-                    if (meta.nethcf_state == FILTERING_STATE) {
-                        // SYN Cookie is enabled to defend SYN DDoS at filtering
-                        apply(syn_cookie_init_table);   //TODO: register_write * 2
-                    }
-                }
-                else if (meta.session_monitor_result == SYNACK_WITHOUT_PROXY) {
-                    // Received SYN/ACK packet, need to init TCP session
-                    apply(session_init_table);  //TODO: register_write * 2
-                }
-                else if (meta.session_monitor_result == ACK_WITHOUT_PROXY) {
-                    // Legal connection established, compute the Hop Count value
-                    // and updates the IP2HC table on the switch and controller
-                    apply(session_complete_table);  //TODO: register_write
-                    apply(hc_update_table); //TODO: register_write * 2 and register_read
-                }
-                else if (meta.session_monitor_result == ACK_WITH_PROXY) {
-                    apply(syn_cookie_complete_table);   //TODO: register_write
-                }
-                else if (meta.session_monitor_result == SYN_AFTER_PROXY) {
-                    // The second syn which after SYN Cookie inspection
-                    // Let this packet pass, and restart session monitor
-                    apply(session_monitor_restart_table);  //TODO: register_write
-                }
-                else if (meta.session_monitor_result == MONITOR_ABNORMAL) {
-                    // Illegal connection attempt
-                    apply(tag_packet_abnormal_table);
+                // reinspect
+                /* Packet Tags
+                 * #define NORMAL_FLAG 0
+                 * #define REPLY_SA_FLAG 1
+                 * #define REPLY_RST_FLAG 2
+                 * #define ABNORMAL_FLAG 3
+                 * #define PASS_AND_NOP 4
+                 * #define SAVE_TO_BITMAP 5
+                 */
+                // UNFINISHED
+                // Packets pass TCP session monitoring, compute packet's hop
+                // count and refer to its original Hop Count
+                apply(hc_reinspect_table);  //TODO: register_read * 2
+                if ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1) {
+                    // Only update hit count when the Hop Count is correct
+                    apply(ip2hc_counter_update_table);  //TODO: Register_read and register_write
                 }
                 else {
-                    // Packets pass TCP session monitoring, compute packet's hop
-                    // count and refer to its original Hop Count
-                    apply(hc_reinspect_table);  //TODO: register_read * 2
-                    if ((meta.ip2hc_valid_flag & meta.dirty_hc_hit_flag) == 1) {
-                        // Only update hit count when the Hop Count is correct
-                        apply(ip2hc_counter_update_table);  //TODO: Register_read and register_write
+                    // Suspicious packets with mismatched Hop Count value
+                    if (meta.nethcf_state == LEARNING_STATE) {
+                        apply(process_mismatch_at_learning_table);  //TODO: counter
                     }
                     else {
-                        // Suspicious packets with mismatched Hop Count value
-                        if (meta.nethcf_state == LEARNING_STATE) {
-                            apply(process_mismatch_at_learning_table);  //TODO: counter
-                        }
-                        else {
-                            apply(process_mismatch_at_filtering_table); //TODO: counter
-                        }
-                   }
+                        apply(process_mismatch_at_filtering_table); //TODO: counter
+                    }
                 }
             }
             // Hot IP2HC entry process

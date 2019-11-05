@@ -246,20 +246,20 @@ table nethcf_prepare_table {
     size : NETHCF_PREPARE_TABLE_SIZE;
 }
 
-blackbox stateful_alu s_read_r_nethcf_state{
-    reg : r_nethcf_state;
-    update_lo_1_value : register_lo;
+// blackbox stateful_alu s_read_r_nethcf_state{
+//     reg : r_nethcf_state;
+//     update_lo_1_value : register_lo;
 
-    output_value : alu_lo;
-    output_dst : meta.nethcf_state;
-}
+//     output_value : alu_lo;
+//     output_dst : meta.nethcf_state;
+// }
 action prepare_src_ip() {
-    s_read_r_nethcf_state.execute_stateful_alu(0);
+    // s_read_r_nethcf_state.execute_stateful_alu(0);
     modify_field(meta.ip_for_match, ipv4.srcAddr);
 }
 
 action prepare_dst_ip() {
-    s_read_r_nethcf_state.execute_stateful_alu(0);
+    // s_read_r_nethcf_state.execute_stateful_alu(0);
     modify_field(meta.ip_for_match, ipv4.dstAddr);
 }
 
@@ -276,12 +276,12 @@ table ip2hc_table {
     default_action : table_miss();
     size : IP2HC_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_miss_counter {
-    reg : r_miss_counter;
-    update_lo_1_value : register_lo;
-}
+// blackbox stateful_alu s_update_miss_counter {
+//     reg : r_miss_counter;
+//     update_lo_1_value : register_lo;
+// }
 action table_miss() {
-    s_update_miss_counter.execute_stateful_alu(0);
+    // s_update_miss_counter.execute_stateful_alu(0);
     modify_field(meta.ip2hc_hit_flag, 0);
 }
 
@@ -317,16 +317,25 @@ action set_ip2hc_counter_update_1() {
     modify_field(meta.ip2hc_counter_update, 1);
 }
 
-table calculate_session_table_index_table {
+table calculate_session_table_index_table_1 {
     actions {
-        calculate_session_table_index;
+        calculate_session_table_index_1;
     }
-    default_action : calculate_session_table_index();
+    default_action : calculate_session_table_index_1();
     size : ONE_ACTION_TABLE_SIZE;
 }
-action calculate_session_table_index() {
+action calculate_session_table_index_1() {
     bit_xor(meta.src_dst_ip, ipv4.srcAddr, ipv4.dstAddr);
     bit_xor(meta.src_dst_port, tcp.srcPort, tcp.dstPort);
+}
+table calculate_session_table_index_table_2 {
+    actions {
+        calculate_session_table_index_2;
+    }
+    default_action : calculate_session_table_index_2();
+    size : ONE_ACTION_TABLE_SIZE;
+}
+action calculate_session_table_index_2() {
     modify_field_with_hash_based_offset(
         meta.session_index, 0,
         session_index_hash, SESSION_TABLE_SIZE
@@ -364,7 +373,7 @@ field_list_calculation syn_cookie_hash {
     input {
         symmetry_hash_fields;
     }
-    algorithm : csum16;
+    algorithm : crc32;
     output_width : SEQ_NO_WIDTH;
 }
 field_list symmetry_hash_fields {
@@ -416,26 +425,26 @@ table update_proxy_session_state_table {
     default_action : update_proxy_session_state();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_proxy_session_state {
-    reg : r_proxy_session_state;
-    /* A Tricky Implementation
-     * Use a table to combine SYN+ACK information into a number
-     *  SYNACK  STATE   SUM     ->     STATE
-     *    10      0      2             1(0+1)(PREDICATE_1)
-     *    01      1      2             2(1+1)(PREDICATE_1)
-     *    10      2      4                0  (PREDICATE_2)
-     */
-    condition_lo : meta.tcp_syn_ack + register_lo == 2;
-	update_lo_1_predicate : condition_lo;
-    update_lo_1_value : register_lo + 1;    // STATE_0->STATE_1 or STATE_1->STATE_2
-	update_lo_2_predicate: not condition_lo;
-	update_lo_2_value : 0;  // STATE_2->STATE_0
+// blackbox stateful_alu s_update_proxy_session_state {
+//     reg : r_proxy_session_state;
+//     /* A Tricky Implementation
+//      * Use a table to combine SYN+ACK information into a number
+//      *  SYNACK  STATE   SUM     ->     STATE
+//      *    10      0      2             1(0+1)(PREDICATE_1)
+//      *    01      1      2             2(1+1)(PREDICATE_1)
+//      *    10      2      4                0  (PREDICATE_2)
+//      */
+//     condition_lo : meta.tcp_syn_ack + register_lo == 2;
+// 	update_lo_1_predicate : condition_lo;
+//     update_lo_1_value : register_lo + 1;    // STATE_0->STATE_1 or STATE_1->STATE_2
+// 	update_lo_2_predicate: not condition_lo;
+// 	update_lo_2_value : 0;  // STATE_2->STATE_0
 
-    output_value : register_lo;
-    output_dst : meta.proxy_session_state;
-}
+//     output_value : register_lo;
+//     output_dst : meta.proxy_session_state;
+// }
 action update_proxy_session_state() {
-    s_update_proxy_session_state.execute_stateful_alu(meta.session_index);
+    // s_update_proxy_session_state.execute_stateful_alu(meta.session_index);
 }
 
 table session_proxy_table {
@@ -490,17 +499,17 @@ table update_session_seq_table {
     default_action : update_session_seq();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_session_seq{
-    reg : r_session_seq;
-    condition_lo : meta.tcp_syn_ack == 2 /* 1 1 */;
-    update_lo_1_predicate : condition_lo;
-    update_lo_1_value : tcp.seqNo;
+// blackbox stateful_alu s_update_session_seq{
+//     reg : r_session_seq;
+//     condition_lo : meta.tcp_syn_ack == 2 /* 1 1 */;
+//     update_lo_1_predicate : condition_lo;
+//     update_lo_1_value : tcp.seqNo;
 
-    output_value : alu_lo;
-    output_dst : meta.session_seq;
-}
+//     output_value : alu_lo;
+//     output_dst : meta.session_seq;
+// }
 action update_session_seq() {
-    s_update_session_seq.execute_stateful_alu(meta.session_index);
+    // s_update_session_seq.execute_stateful_alu(meta.session_index);
 }
 
 table calculate_seqno_diff_table_2 {
@@ -522,27 +531,27 @@ table update_monitor_session_state_table {
     default_action : update_monitor_session_state();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_monitor_session_state {
-    reg : r_monitor_session_state;
-    /* A Tricky Implementation
-     * Use a table to combine SYN+ACK information into a number
-     *  SYNACK     STATE   SUM SEQ#diff ->   STATE
-     *    11(2)      0      2     /      1(PREDICATE_1)
-     *    01(1)      1      2     1      0(PREDICATE_2)
-     */
-    condition_lo : meta.tcp_syn_ack + register_lo == 2;
-    condition_hi : meta.seq_no_diff == 1;
+// blackbox stateful_alu s_update_monitor_session_state {
+//     reg : r_monitor_session_state;
+//     /* A Tricky Implementation
+//      * Use a table to combine SYN+ACK information into a number
+//      *  SYNACK     STATE   SUM SEQ#diff ->   STATE
+//      *    11(2)      0      2     /      1(PREDICATE_1)
+//      *    01(1)      1      2     1      0(PREDICATE_2)
+//      */
+//     condition_lo : meta.tcp_syn_ack + register_lo == 2;
+//     condition_hi : meta.seq_no_diff == 1;
 
-	update_lo_1_predicate : condition_lo;
-    update_lo_1_value : 1;
-	update_lo_2_predicate: condition_hi and not condition_lo;
-	update_lo_2_value : 0;
+// 	update_lo_1_predicate : condition_lo;
+//     update_lo_1_value : 1;
+// 	update_lo_2_predicate: condition_hi and not condition_lo;
+// 	update_lo_2_value : 0;
 
-    output_value : register_lo;
-    output_dst : meta.monitor_session_state;
-}
+//     output_value : register_lo;
+//     output_dst : meta.monitor_session_state;
+// }
 action update_monitor_session_state() {
-    s_update_monitor_session_state.execute_stateful_alu(meta.session_index);
+    // s_update_monitor_session_state.execute_stateful_alu(meta.session_index);
 }
 
 table session_monitor_table {
@@ -576,20 +585,20 @@ table update_ip2hc_valid_flag_table {
     default_action : update_ip2hc_valid_flag();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_ip2hc_valid_flag{
-    reg : r_ip2hc_valid_flag;
-    condition_lo : meta.packet_tag == 5; /* Update bitmap */
+// blackbox stateful_alu s_update_ip2hc_valid_flag{
+//     reg : r_ip2hc_valid_flag;
+//     condition_lo : meta.packet_tag == 5; /* Update bitmap */
 
-    update_lo_1_predicate : condition_lo;
-    update_lo_1_value : 1;
-    update_lo_2_predicate : not condition_lo;
-    update_lo_2_value : register_lo;
+//     update_lo_1_predicate : condition_lo;
+//     update_lo_1_value : 1;
+//     update_lo_2_predicate : not condition_lo;
+//     update_lo_2_value : register_lo;
 
-    output_value : alu_lo;
-    output_dst : meta.ip2hc_valid_flag;
-}
+//     output_value : alu_lo;
+//     output_dst : meta.ip2hc_valid_flag;
+// }
 action update_ip2hc_valid_flag() {
-    s_update_ip2hc_valid_flag.execute_stateful_alu(meta.ip2hc_index);
+    // s_update_ip2hc_valid_flag.execute_stateful_alu(meta.ip2hc_index);
 }
 
 table update_temporary_bitmap_table {
@@ -599,22 +608,22 @@ table update_temporary_bitmap_table {
     default_action : update_temporary_bitmap();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_temporary_bitmap{
-    reg : r_temporary_bitmap;
-    condition_lo : meta.packet_tag == 5; /* Update bitmap */
+// blackbox stateful_alu s_update_temporary_bitmap{
+//     reg : r_temporary_bitmap;
+//     condition_lo : meta.packet_tag == 5; /* Update bitmap */
 
-    update_lo_1_predicate : condition_lo;
-    update_lo_1_value : 1;
-    update_lo_2_predicate : not condition_lo;
-    update_lo_2_value : register_lo;
+//     update_lo_1_predicate : condition_lo;
+//     update_lo_1_value : 1;
+//     update_lo_2_predicate : not condition_lo;
+//     update_lo_2_value : register_lo;
 
-    output_predicate : meta.ip2hc_valid_flag == 1;
-    output_value : alu_lo;
-    // output = 1 only when valid == 1 and bitmap == 1
-    output_dst : meta.dirty_hc_hit_flag;
-}
+//     output_predicate : meta.ip2hc_valid_flag == 1;
+//     output_value : alu_lo;
+//     // output = 1 only when valid == 1 and bitmap == 1
+//     output_dst : meta.dirty_hc_hit_flag;
+// }
 action update_temporary_bitmap() {
-    s_update_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
+    // s_update_temporary_bitmap.execute_stateful_alu_from_hash(temporary_bitmap_index_hash);
 }
 
 
@@ -644,12 +653,12 @@ table process_mismatch_table {
     default_action : process_mismatch();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_update_mismatch_counter {
-    reg : r_mismatch_counter;
-    update_lo_1_value : register_lo + 1;
-}
+// blackbox stateful_alu s_update_mismatch_counter {
+//     reg : r_mismatch_counter;
+//     update_lo_1_value : register_lo + 1;
+// }
 action process_mismatch() {
-    s_update_mismatch_counter.execute_stateful_alu(0);
+    // s_update_mismatch_counter.execute_stateful_alu(0);
 }
 
 table process_mismatch_at_filtering_table {
@@ -674,19 +683,19 @@ table ip2hc_counter_update_table {
 }
 // read r_ip2hc_counter, increment by 1
 // then write back and output the value into meta.ip2hc_counter_value
-blackbox stateful_alu s_update_ip2hc_counter{
-    reg : r_ip2hc_counter;
-    condition_lo : meta.ip2hc_counter_update == 1;
-    condition_hi : meta.ip2hc_valid_flag and meta.dirty_hc_hit_flag == 1;
+// blackbox stateful_alu s_update_ip2hc_counter{
+//     reg : r_ip2hc_counter;
+//     condition_lo : meta.ip2hc_counter_update == 1;
+//     condition_hi : meta.ip2hc_valid_flag and meta.dirty_hc_hit_flag == 1;
 
-    update_lo_1_predicate : condition_lo and condition_hi;
-    update_lo_1_value : register_lo + 1;
+//     update_lo_1_predicate : condition_lo and condition_hi;
+//     update_lo_1_value : register_lo + 1;
 
-    output_value : alu_lo;
-    output_dst : meta.ip2hc_counter_value;
-}
+//     output_value : alu_lo;
+//     output_dst : meta.ip2hc_counter_value;
+// }
 action update_ip2hc_counter() {
-    s_update_ip2hc_counter.execute_stateful_alu(meta.ip2hc_index);
+    // s_update_ip2hc_counter.execute_stateful_alu(meta.ip2hc_index);
 }
 
 // Set r_report_bitarray
@@ -697,12 +706,12 @@ table report_bitarray_set_table {
     default_action : set_report_bitarray();
     size : ONE_ACTION_TABLE_SIZE;
 }
-blackbox stateful_alu s_set_report_bitarray {
-    reg : r_report_bitarray;
-    update_lo_1_value : 1;
-}
+// blackbox stateful_alu s_set_report_bitarray {
+//     reg : r_report_bitarray;
+//     update_lo_1_value : 1;
+// }
 action set_report_bitarray() {
-    s_set_report_bitarray.execute_stateful_alu(meta.ip2hc_index);
+    // s_set_report_bitarray.execute_stateful_alu(meta.ip2hc_index);
 }
 
 
@@ -895,7 +904,8 @@ control ingress {
                  *  3) ACK + STATE_1 -> mark as ABNORMAL
                  *  4) OTHERS -> check BITMAP + VALID_ARRAY
                  ****************************************************/
-                apply(calculate_session_table_index_table);
+                apply(calculate_session_table_index_table_1);
+                apply(calculate_session_table_index_table_2);
                 if (meta.nethcf_state == FILTERING_STATE) {
                     /* PROXY
                      * register: r_proxy_session_state

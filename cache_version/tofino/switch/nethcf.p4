@@ -19,7 +19,7 @@
 #define TEMPORARY_BITMAP_INDEX_WIDTH 9
 #define SEQ_NO_WIDTH 32
 #define SESSION_INDEX_WIDTH 8
-#define SESSION_TABLE_SIZE 256 // 2^8
+#define SESSION_TABLE_SIZE 65536 // 2^8
 #define SESSION_STATE_WIDTH 2
 #define SESSION_MONITOR_RESULT_WIDTH 3
 #define PACKET_TAG_WIDTH 3
@@ -32,7 +32,7 @@
 #define IP2HC_TABLE_SIZE 262144
 // #define TEMPORARY_BITMAP_SIZE 16
 // #define TEMPORARY_BITMAP_ARRAY_SIZE 16
-#define TEMPORARY_BITMAP_SIZE 512 /* 16 * 32* */
+#define TEMPORARY_BITMAP_SIZE 4096 /* 16 * 32* */
 #define TEMPORARY_BITMAP_ARRAY_SIZE 1
 #define FORWARD_TABLE_SIZE 10
 #define ONE_ACTION_TABLE_SIZE 0
@@ -281,14 +281,14 @@ action inspect_hc(initial_ttl) {
 // @pragma stage 1
 table ip2hc_table {
     reads {
-        meta.ip_for_match : exact;
+        meta.ip_for_match : exact; /* ternary uses TCAM, exact uses SRAM */
     }
     actions {
         table_miss;
         table_hit;
     }
     default_action : table_miss();
-    size : IP2HC_TABLE_SIZE;
+    size : 262144; /* 256K */
 }
 // blackbox stateful_alu s_update_miss_counter {
 //     reg : r_miss_counter;
@@ -644,7 +644,7 @@ field_list_calculation temporary_bitmap_index_hash {
         ip_hc_hash_fields;
     }
     algorithm : crc16;
-    output_width : 9;
+    output_width : 12;
 }
 
 field_list ip_hc_hash_fields {
@@ -699,6 +699,7 @@ action process_mismatch_at_filtering() {
 
 
 // Update r_ip2hc_counter
+// @pragma stage 11
 table ip2hc_counter_update_table {
     actions {
         update_ip2hc_counter;
@@ -911,13 +912,13 @@ control ingress {
                 table_hit {
                     // IP is cached in IP2HC
                     // ORIGINAL apply(hc_inspect_table);/* stage 0 */
-                    if (meta.ip2hc_hop_count == meta.packet_hop_count) {
+                    // if (meta.ip2hc_hop_count == meta.packet_hop_count) {
                         // It is normal
                         // Only update hit count when the Hop Count is correct
                         /* Stateful_alu : r_ip2hc_counter */
                         apply(set_ip2hc_counter_update_table_1);/* stage 2 */
-                    }
-                    else {
+                    // }
+                    // else {
                         // hop count does not match
                         /*****************************************************
                         * TOFINO version -- register-oriented logic
@@ -981,7 +982,7 @@ control ingress {
                         apply(update_ip2hc_valid_flag_table);/* stage 9 */
                         // update r_temporary_bitmap
                         apply(update_temporary_bitmap_table);/* stage 10 */
-                    }
+                    // }
                 }
             }
         }
